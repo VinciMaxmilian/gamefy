@@ -1,18 +1,39 @@
-import { Star } from "lucide-react";
+import { EyeOff, Star } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { useInvalidateUserData } from "@/lib/queries";
 import type { GameCard } from "@/lib/types";
 import { formatPrice, hoursLabel, label } from "@/lib/utils";
 import { Badge } from "./ui/badge";
 import { Cover } from "./Cover";
 import { WishlistButton } from "./WishlistButton";
 
-export function GameCardView({ game, reasons, compat }: { game: GameCard; reasons?: string[]; compat?: string | null }) {
+export function GameCardView({ game, reasons, compat, dismissible }: { game: GameCard; reasons?: string[]; compat?: string | null; dismissible?: boolean }) {
   const hours = hoursLabel(game.avg_duration_hours);
+  const { me } = useAuth();
+  const invalidate = useInvalidateUserData();
+  const [gone, setGone] = useState(false);
+  if (gone) return null;
+  const dismiss = (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setGone(true);
+    api("/me/events", { method: "POST", body: { type: "ignore", slug: game.slug } }).then(invalidate).catch(() => setGone(false));
+  };
   return (
     <Link to={`/games/${game.slug}`} className="lift group block overflow-hidden rounded-lg bg-surface shadow-card fade-in">
       <div className="relative">
         <Cover slug={game.slug} title={game.title} url={game.cover_url} className="aspect-[16/10]" />
-        <div className="absolute right-3 top-3"><WishlistButton slug={game.slug} /></div>
+        <div className="absolute right-3 top-3 flex flex-col gap-2">
+          <WishlistButton slug={game.slug} />
+          {dismissible && me && (
+            <button onClick={dismiss} aria-label={`Not interested in ${game.title}`} title="Not interested"
+              className="material grid size-9 place-items-center rounded-full text-fg transition hover:scale-105 active:scale-95 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100">
+              <EyeOff className="size-[18px]" />
+            </button>
+          )}
+        </div>
         {compat === "below_minimum" && <Badge tone="negative" className="material absolute left-3 top-3">Won’t run on your PC</Badge>}
         {compat === "recommended" && <Badge tone="positive" className="material absolute left-3 top-3">Runs great on your PC</Badge>}
       </div>

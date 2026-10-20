@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { TasteItem } from "@/lib/types";
+import type { Facets, TasteItem } from "@/lib/types";
 import { cn, label } from "@/lib/utils";
 import { RequireAuth } from "./Auth";
 
-interface Taste { likes: TasteItem[]; dislikes: TasteItem[] }
+interface Taste { likes: TasteItem[]; dislikes: TasteItem[]; explicit: Record<string, number> }
 interface Hw { cpu?: string; gpu?: string; ram_gb?: number; vram_gb?: number; storage_gb?: number; os?: string; gpu_recognized?: boolean; cpu_recognized?: boolean }
 
 function Bars({ items, negative }: { items: TasteItem[]; negative?: boolean }) {
@@ -39,6 +39,20 @@ export default function Profile() {
       cpu: form.cpu || null, gpu: form.gpu || null, ram_gb: form.ram_gb || null, vram_gb: form.vram_gb ?? null, storage_gb: form.storage_gb || null, os: form.os || null } }),
     onSuccess: () => hw.refetch(),
   });
+  const facets = useQuery({ queryKey: ["facets"], queryFn: () => api<Facets>("/games/facets"), staleTime: 600_000 });
+  const [prefs, setPrefs] = useState<Record<string, 1 | -1>>({});
+  useEffect(() => {
+    const e = taste.data?.explicit ?? {};
+    setPrefs(Object.fromEntries(Object.entries(e).filter(([k]) => k.startsWith("genre:")).map(([k, v]) => [k.slice(6), v > 0 ? 1 : -1])));
+  }, [taste.data]);
+  const cycle = (g: string) => setPrefs((p) => { const n = { ...p }; if (!n[g]) n[g] = 1; else if (n[g] === 1) n[g] = -1; else delete n[g]; return n; });
+  const savePrefs = useMutation({
+    mutationFn: () => api("/me/taste/explicit", { method: "PUT", body: {
+      likes: Object.keys(prefs).filter((g) => prefs[g] === 1), dislikes: Object.keys(prefs).filter((g) => prefs[g] === -1) } }),
+    onSuccess: () => Promise.all([taste.refetch(), invalidateRecs()]),
+  });
+  const qc = useQueryClient();
+  const invalidateRecs = () => qc.invalidateQueries({ queryKey: ["for-you"] });
   const del = useMutation({ mutationFn: () => api("/me/account", { method: "DELETE" }), onSuccess: async () => { await logout(); nav("/"); } });
   const num = (k: keyof Hw) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value === "" ? undefined : Number(e.target.value) }));
 
@@ -61,6 +75,21 @@ export default function Profile() {
               <div className="rounded-lg bg-surface p-6 shadow-card"><h3 className="mb-4 text-lg">Not really your thing</h3>{taste.data && taste.data.dislikes.length ? <Bars items={taste.data.dislikes} negative /> : <p className="text-fg-3">Skip games you don’t like to teach us.</p>}</div>
             </div>
           )}
+        </section>
+
+        <section className="space-y-4">
+          <div><h2 className="text-2xl">Tell us directly</h2><p className="mt-1 text-fg-2">Tap a genre once to like it, twice to avoid it, three times to clear it. This counts as much as your history.</p></div>
+          <div className="flex flex-wrap gap-2">
+            {facets.data?.genres.slice(0, 18).map((f) => {
+              const v = prefs[f.value];
+              return (
+                <button key={f.value} onClick={() => cycle(f.value)} aria-label={`${label(f.value)}: ${v === 1 ? "liked" : v === -1 ? "avoided" : "neutral"}`}
+                  className={cn("rounded-full px-4 py-2 text-sm capitalize transition", v === 1 ? "bg-accent text-white" : v === -1 ? "bg-negative/15 text-negative line-through" : "bg-surface-2 text-fg-2 hover:bg-surface-3")}>
+                  {label(f.value)}
+                </button>);
+            })}
+          </div>
+          <div className="flex items-center gap-3"><Button onClick={() => savePrefs.mutate()} disabled={savePrefs.isPending}>{savePrefs.isPending ? "Saving…" : "Save preferences"}</Button>{savePrefs.isSuccess && <span className="text-sm text-positive">Saved</span>}</div>
         </section>
 
         <section className="space-y-5">

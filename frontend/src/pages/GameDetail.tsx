@@ -5,12 +5,14 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Cover } from "@/components/Cover";
 import { GameCardView } from "@/components/GameCardView";
 import { Rail } from "@/components/Rail";
+import { RatingBox } from "@/components/RatingBox";
+import { Reviews } from "@/components/Reviews";
 import { WishlistButton } from "@/components/WishlistButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useInvalidateUserData, useLibrary, useMyRatings } from "@/lib/queries";
+import { useInvalidateUserData, useLibrary } from "@/lib/queries";
 import type { GameCard, GameDetail as Detail } from "@/lib/types";
 import { cn, formatPrice, hoursLabel, label } from "@/lib/utils";
 
@@ -31,7 +33,6 @@ export default function GameDetail() {
   const game = useQuery({ queryKey: ["game", slug, me?.email], queryFn: () => api<Detail>(`/games/${slug}`), retry: false });
   const similar = useQuery({ queryKey: ["similar", slug], queryFn: () => api<GameCard[]>(`/games/${slug}/similar`), enabled: game.isSuccess });
   const library = useLibrary();
-  const ratings = useMyRatings();
   const owned = library.data?.find((e) => e.game.slug === slug);
 
   useEffect(() => { if (me && game.isSuccess) api("/me/events", { method: "POST", body: { type: "view", slug } }).catch(() => {}); }, [me, game.isSuccess, slug]);
@@ -40,13 +41,11 @@ export default function GameDetail() {
     mutationFn: (on: boolean) => on ? api(`/me/library/${slug}`, { method: "PUT", body: { status: "owned", playtime_minutes: 0 } }) : api(`/me/library/${slug}`, { method: "DELETE" }),
     onSuccess: invalidate,
   });
-  const rate = useMutation({ mutationFn: (score: number) => api(`/me/ratings/${slug}`, { method: "PUT", body: { score } }), onSuccess: invalidate });
 
   if (game.isError) return <div className="py-24 text-center"><h1 className="text-3xl">Game not found</h1><Button asChild className="mt-6"><Link to="/games">Back to store</Link></Button></div>;
   const g = game.data;
   if (!g) return <div className="h-[420px] animate-pulse rounded-xl bg-surface" />;
   const v = g.compatibility ? VERDICT[g.compatibility.verdict] : null;
-  const myScore = ratings.data?.[slug];
 
   return (
     <article className="space-y-14">
@@ -71,14 +70,6 @@ export default function GameDetail() {
             <Button size="lg" onClick={() => me ? addLibrary.mutate(!owned) : nav("/login")} variant={owned ? "secondary" : "primary"}>{owned ? <><Check className="size-5" />In library</> : "Add to library"}</Button>
             <WishlistButton slug={g.slug} variant="full" />
           </div>
-          {me && (
-            <div className="flex items-center gap-1" role="group" aria-label="Your rating">
-              <span className="mr-2 text-sm text-fg-3">Your rating</span>
-              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                <button key={n} aria-label={`Rate ${n} out of 10`} onClick={() => rate.mutate(n)} className={cn("size-7 rounded-full text-xs font-medium transition hover:scale-110", myScore && n <= myScore ? "bg-warning text-black" : "bg-surface-2 text-fg-3")}>{n}</button>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
@@ -121,6 +112,9 @@ export default function GameDetail() {
           <p className="text-xs text-fg-3">Tiers run 1 (entry) to 10 (enthusiast). The check is rule-based, not AI.</p>
         </section>
       </div>
+
+      <Reviews slug={g.slug} />
+      {me && <div className="max-w-2xl"><RatingBox slug={g.slug} /></div>}
 
       {similar.data && similar.data.length > 0 && (
         <Rail title={<><span className="spark">✦</span> More like this</>} subtitle="Similar in gameplay, mood and story.">

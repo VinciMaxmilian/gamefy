@@ -23,6 +23,7 @@ export function Nav() {
           {me && <NavLink to="/wishlist" className={link}>Wishlist</NavLink>}
           {me && <NavLink to="/library" className={link}>Library</NavLink>}
           <NavLink to="/premium" className={link}>Premium</NavLink>
+          {me?.role === "admin" && <NavLink to="/admin" className={link}>Admin</NavLink>}
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="ghost" size="icon" aria-label="Smart search" onClick={() => nav("/#search")}><Search className="size-5" /></Button>
@@ -37,6 +38,7 @@ export function Nav() {
                   <MenuLink to="/wishlist" icon={<Heart className="size-4" />}>Wishlist</MenuLink>
                   <MenuLink to="/library" icon={<Library className="size-4" />}>Library</MenuLink>
                   <MenuLink to="/premium" icon={<Sparkles className="size-4" />}>Plans</MenuLink>
+                  {me.role === "admin" && <MenuLink to="/admin" icon={<Sparkles className="size-4" />}>Admin</MenuLink>}
                   <button onClick={() => logout().then(() => nav("/"))} className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-[15px] text-negative hover:bg-surface-2"><LogOut className="size-4" />Log out</button>
                 </div>
               )}

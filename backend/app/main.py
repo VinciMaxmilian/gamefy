@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import get_settings
-from .routers import auth, games, me, reco
+from .routers import admin, auth, games, me, reco
 from .security.middleware import SECURITY_HEADERS, SecurityMiddleware, configure_logging
 from .security.ratelimit import ip_limiter
 
@@ -88,5 +88,5 @@ async def ready() -> JSONResponse:
         return JSONResponse({"ok": False, "db": False}, status_code=503)
 
 
-for r in (auth.router, games.router, me.router, reco.router):
+for r in (auth.router, games.router, me.router, reco.router, admin.router):
     app.include_router(r, prefix="/api")

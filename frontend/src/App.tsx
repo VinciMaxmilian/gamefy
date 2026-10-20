@@ -10,6 +10,7 @@ const Discover = lazy(() => import("./pages/Discover"));
 const GameDetail = lazy(() => import("./pages/GameDetail"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Premium = lazy(() => import("./pages/Premium"));
+const Admin = lazy(() => import("./pages/Admin"));
 const Lists = import("./pages/Lists");
 const Wishlist = lazy(() => Lists.then((m) => ({ default: m.Wishlist })));
 const LibraryPage = lazy(() => Lists.then((m) => ({ default: m.LibraryPage })));
@@ -57,6 +58,7 @@ export default function App() {
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/premium" element={<Premium />} />
+            <Route path="/admin" element={<Admin />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/recover" element={<Recover />} />

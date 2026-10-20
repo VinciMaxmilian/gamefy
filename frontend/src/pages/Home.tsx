@@ -37,8 +37,12 @@ export default function Home() {
           title={<><Spark /> Picked for you</>}
           subtitle={forYou.data && !forYou.data.personalized ? "Add games to your wishlist or library and these will learn your taste." : "Based on what you play, save and rate."}
           action={<Button asChild variant="ghost" size="sm"><Link to="/profile">Your taste</Link></Button>}>
-          {forYou.isLoading ? <CardSkeletons n={4} /> : forYou.data?.items.slice(0, 8).map((r) => <GameCardView key={r.game.slug} game={r.game} reasons={r.reasons} compat={r.compatibility?.verdict} />)}
+          {forYou.isLoading ? <CardSkeletons n={4} /> : forYou.data?.items.slice(0, 8).map((r) => <GameCardView key={r.game.slug} game={r.game} reasons={r.reasons} compat={r.compatibility?.verdict} dismissible />)}
         </Rail>
+      )}
+
+      {top.data && top.data.items.length === 0 && (
+        <p className="rounded-lg bg-surface p-8 text-center text-fg-2">The catalog is being set up. Check back in a moment.</p>
       )}
 
       <Rail title="Highest rated" subtitle="Loved by players." action={<Button asChild variant="ghost" size="sm"><Link to="/games?sort=rating">See all</Link></Button>}>

@@ -73,8 +73,8 @@ class SecurityMiddleware:
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
                 status_holder["status"] = message["status"]
-                raw = [(k, v) for k, v in message.get("headers", [])
-                       if k.decode().lower() not in {h.lower() for h in SECURITY_HEADERS} | {"server"}]
+                own = {h.lower() for h in SECURITY_HEADERS} - {"cache-control"}     # endpoints may set their own caching
+                raw = [(k, v) for k, v in message.get("headers", []) if k.decode().lower() not in own | {"server"}]
                 for k, v in SECURITY_HEADERS.items():
                     if k == "Cache-Control" and any(h[0].lower() == b"cache-control" for h in raw):
                         continue

@@ -115,6 +115,21 @@ async def rate(slug: Slug, body: RatingIn, request: Request, principal: Principa
     return Response(status_code=204)
 
 
+@router.get("/ratings/{slug}")
+async def my_rating(slug: Slug, principal: Principal = Depends(current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    g = await _game(session, slug)
+    r = await session.get(Rating, (principal.user_id, g.id))
+    return {"score": r.score, "review": r.review} if r else {"score": None, "review": None}
+
+
+@router.delete("/ratings/{slug}", status_code=204)
+async def delete_rating(slug: Slug, principal: Principal = Depends(current_user), session: AsyncSession = Depends(get_session)):
+    g = await _game(session, slug)
+    await session.execute(delete(Rating).where(Rating.user_id == principal.user_id, Rating.game_id == g.id))
+    await session.commit()
+    return Response(status_code=204)
+
+
 @router.get("/ratings")
 async def my_ratings(principal: Principal = Depends(current_user), session: AsyncSession = Depends(get_session)) -> dict:
     rows = (await session.execute(select(Game.slug, Rating.score).join(Rating, Rating.game_id == Game.id)
