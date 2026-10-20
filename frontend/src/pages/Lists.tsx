@@ -6,27 +6,31 @@ import type { LibraryEntry } from "@/lib/types";
 import { CardSkeletons, GameCardView } from "@/components/GameCardView";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
+import { useI18n } from "@/lib/i18n";
 import { useInvalidateUserData, useLibrary, useWishlist } from "@/lib/queries";
 import { RequireAuth } from "./Auth";
 
-const Empty = ({ text }: { text: string }) => (
-  <div className="py-24 text-center"><p className="text-xl text-fg-2">{text}</p><Button asChild className="mt-6"><Link to="/games">Browse the store</Link></Button></div>
-);
+const Empty = ({ text }: { text: string }) => {
+  const { t } = useI18n();
+  return <div className="py-24 text-center"><p className="text-xl text-fg-2">{text}</p><Button asChild className="mt-6"><Link to="/games">{t("lists.browse")}</Link></Button></div>;
+};
 
 export function Wishlist() {
+  const { t } = useI18n();
   const { data, isLoading } = useWishlist();
   return (
     <RequireAuth>
-      <h1 className="mb-8 text-4xl">Wishlist</h1>
+      <h1 className="mb-8 text-4xl">{t("wishlist.title")}</h1>
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{isLoading ? <CardSkeletons n={4} /> : data?.map((g) => <GameCardView key={g.slug} game={g} />)}</div>
-      {data?.length === 0 && <Empty text="Games you save will show up here." />}
+      {data?.length === 0 && <Empty text={t("wishlist.empty")} />}
     </RequireAuth>
   );
 }
 
-const STATUSES = [["owned", "Owned"], ["playing", "Playing"], ["completed", "Completed"], ["dropped", "Dropped"]] as const;
+const STATUSES = ["owned", "playing", "completed", "dropped"] as const;
 
 function LibraryItem({ entry }: { entry: LibraryEntry }) {
+  const { t } = useI18n();
   const invalidate = useInvalidateUserData();
   // Local state is the source of truth while editing: both fields are always sent together, so a quick
   // status change followed by an hours edit can never overwrite one with a stale value from props.
@@ -43,33 +47,34 @@ function LibraryItem({ entry }: { entry: LibraryEntry }) {
     <div className="space-y-3">
       <GameCardView game={entry.game} />
       <div className="flex flex-wrap items-center gap-2 px-1 text-sm">
-        <label className="sr-only" htmlFor={`st-${slug}`}>Status</label>
+        <label className="sr-only" htmlFor={`st-${slug}`}>{t("library.status")}</label>
         <select id={`st-${slug}`} value={status} onChange={(e) => { setStatus(e.target.value); put.mutate({ status: e.target.value, playtime_minutes: minutes() }); }}
           className="h-8 rounded-full bg-surface-2 px-3 text-fg outline-none">
-          {STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          {STATUSES.map((v) => <option key={v} value={v}>{t(`status.${v}`)}</option>)}
         </select>
-        <label className="sr-only" htmlFor={`h-${slug}`}>Hours played</label>
+        <label className="sr-only" htmlFor={`h-${slug}`}>{t("library.hours")}</label>
         <input id={`h-${slug}`} type="number" min={0} max={10000} value={hours} onChange={(e) => setHours(e.target.value)}
           onBlur={() => { if (minutes() !== entry.playtime_minutes) put.mutate({ status, playtime_minutes: minutes() }); }}
           className="h-8 w-16 rounded-full bg-surface-2 px-3 text-center text-fg outline-none" />
-        <span className="text-fg-3">h played</span>
-        <button onClick={() => remove.mutate()} className="ml-auto text-fg-3 hover:text-negative">Remove</button>
+        <span className="text-fg-3">{t("library.h_played")}</span>
+        <button onClick={() => remove.mutate()} className="ml-auto text-fg-3 hover:text-negative">{t("remove")}</button>
       </div>
     </div>
   );
 }
 
 export function LibraryPage() {
+  const { t } = useI18n();
   const { data, isLoading } = useLibrary();
   const { me } = useAuth();
   return (
     <RequireAuth>
-      <h1 className="mb-2 text-4xl">Library</h1>
-      <p className="mb-8 text-fg-2">Hours played and status teach your taste profile what you really enjoy.</p>
+      <h1 className="mb-2 text-4xl">{t("library.title")}</h1>
+      <p className="mb-8 text-fg-2">{t("library.sub")}</p>
       <div className="grid gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {isLoading ? <CardSkeletons n={4} /> : data?.map((e) => <LibraryItem key={e.game.slug} entry={e} />)}
       </div>
-      {me && data?.length === 0 && <Empty text="Add games you own to teach us your taste." />}
+      {me && data?.length === 0 && <Empty text={t("library.empty")} />}
     </RequireAuth>
   );
 }

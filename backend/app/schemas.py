@@ -38,15 +38,21 @@ class GameDetail(GameCard):
     req: dict
 
 
+class Reason(BaseModel):
+    """Language-neutral explanation: the frontend renders `code` + `args` in the user's language."""
+    code: str
+    args: list[str] = []
+
+
 class Compatibility(BaseModel):
     verdict: str
-    reasons: list[str]
+    reasons: list[Reason]
 
 
 class Recommendation(BaseModel):
     game: GameCard
     score: float
-    reasons: list[str]
+    reasons: list[Reason]
     breakdown: dict[str, float] | None = None
     compatibility: Compatibility | None = None
 

@@ -1,3 +1,5 @@
+import { translate, translateServer } from "./i18n";
+
 export class ApiError extends Error {
   constructor(public status: number, public detail: unknown) {
     super(typeof detail === "string" ? detail : `HTTP ${status}`);
@@ -62,8 +64,8 @@ export async function api<T = unknown>(path: string, opts: { method?: string; bo
 
 export const errorMessage = (e: unknown): string => {
   if (e instanceof ApiError) {
-    if (Array.isArray(e.detail)) return e.detail.map((d) => (typeof d === "string" ? d : d.msg)).join(" ");
-    return String(e.detail);
+    if (Array.isArray(e.detail)) return e.detail.map((d) => translateServer(typeof d === "string" ? d : d.msg)).join(" ");
+    return translateServer(String(e.detail));
   }
-  return "Something went wrong. Please try again.";
+  return translate("err.generic");
 };

@@ -196,3 +196,40 @@ def test_client_verify_uses_os_trust_store_only_on_windows_and_macos(monkeypatch
     monkeypatch.setattr(sys, "platform", "win32")
     ctx = tlsutil.client_verify()
     assert isinstance(ctx, ssl.SSLContext) and type(ctx).__module__.startswith("truststore")
+
+
+async def test_rest_importer_request_shapes(monkeypatch):
+    import datetime, httpx, json
+    from app.config import get_settings
+    from app.ingest import http as http_mod, rest_store as rs
+    s = get_settings()
+    monkeypatch.setattr(s, "supabase_url", "https://x.supabase.co"); monkeypatch.setattr(s, "supabase_secret_key", "sb_secret_test")
+    calls = []
+
+    async def fake(self, method, path, **kw):
+        calls.append((method, self.base_url + path, kw))
+        body = json.loads(kw["content"]) if kw.get("content") else None
+        rep = [{"id": f"uuid-{r['igdb_id']}", "igdb_id": r["igdb_id"]} for r in body] if method == "POST" and path == "/games" else []
+        return httpx.Response(201 if method == "POST" else 200, json=rep, request=httpx.Request(method, "https://x"))
+    monkeypatch.setattr(http_mod.Throttled, "request", fake)
+    rest = rs.Rest()
+    try:
+        g1 = {"igdb_id": 1, "slug": "a", "title": "A", "cover_url": None, "release_date": datetime.date(2020, 1, 2), "genres": []}
+        g2 = {"igdb_id": 2, "slug": "b", "title": "B", "cover_url": "https://images.igdb.com/x.jpg", "release_date": None, "genres": ["rpg"]}
+        ids = await rs.upsert_games(rest, [{"game": g1}, {"game": g2}])
+        assert ids == {1: "uuid-1", 2: "uuid-2"}
+        posts = [c for c in calls if c[0] == "POST"]
+        assert len(posts) == 2                                          # rows with different key sets are sent separately
+        sent = [json.loads(c[2]["content"])[0] for c in posts]
+        assert all(p["slug"] in ("a", "b") for p in sent) and "cover_url" not in sent[0] and sent[0]["release_date"] == "2020-01-02"
+        assert posts[0][2]["params"] == {"on_conflict": "igdb_id"} and "merge-duplicates" in posts[0][2]["headers"]["Prefer"]
+        calls.clear()
+        n = await rs.replace_links(rest, "uuid-1", "igdb", [
+            {"store": "steam", "source": "igdb", "url": "https://store.steampowered.com/app/1/"},
+            {"store": "steam", "source": "igdb", "url": "https://store.steampowered.com/app/1/?x=2"},     # duplicate store
+            {"store": "gog", "source": "igdb", "url": "https://evil.example/phish"}])                       # not allow-listed
+        assert n == 1
+        assert calls[0][0] == "DELETE" and calls[0][2]["params"] == {"game_id": "eq.uuid-1", "source": "eq.igdb"}
+        assert json.loads(calls[1][2]["content"]) == [{"game_id": "uuid-1", "store": "steam", "source": "igdb", "url": "https://store.steampowered.com/app/1/", "currency": "USD"}]
+    finally:
+        await rest.aclose()

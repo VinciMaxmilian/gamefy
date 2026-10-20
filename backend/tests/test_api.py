@@ -182,3 +182,14 @@ async def test_admin_overview_requires_admin_role(client, db_ready):
     assert {"totals", "usage", "by_endpoint", "per_user", "daily", "security_events"} <= set(d)
     assert d["totals"]["games"] >= 30 and d["usage"]["calls"] >= 1
     assert any(u["email"].endswith("@example.com") for u in d["per_user"])
+
+
+async def test_pagination_is_complete_and_stable(client, db_ready):
+    first = (await client.get("/api/games", params={"limit": 10, "offset": 0, "sort": "rating"})).json()
+    total = first["total"]
+    seen = []
+    for off in range(0, min(total, 40), 10):
+        page = (await client.get("/api/games", params={"limit": 10, "offset": off, "sort": "rating"})).json()
+        seen += [g["slug"] for g in page["items"]]
+    assert len(seen) == len(set(seen)) == min(total, 40)                      # no duplicates or gaps across pages
+    assert (await client.get("/api/games", params={"offset": 50_000, "limit": 5})).json()["items"] == []

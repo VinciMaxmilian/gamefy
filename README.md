@@ -21,6 +21,8 @@ Browser ──► Netlify (React SPA)  ──/api/*  proxy──►  Vercel (Fas
 | Auth (signup/login/logout/refresh/recover/reset), HttpOnly cookies, CSRF, brute-force limits | ✅ |
 | Catalog, FTS search, filters, sorting, game page, similar games (pgvector) | ✅ |
 | Wishlist, library (status + hours, editable), ratings and written reviews (anonymous, sanitised), profile | ✅ |
+| Store lists every game with numbered pagination (24 per page; filters and sorting reset to page 1) | ✅ |
+| Site language switcher: English and Português (Brasil); follows the browser by default, choice is remembered | ✅ |
 | "Not interested" on recommendations and explicit genre likes/dislikes feed the taste profile | ✅ |
 | Admin dashboard (`/admin`): cost per user, cache hit rate, tokens, security/audit events | ✅ |
 | CI (GitHub Actions): backend tests on Postgres+pgvector, frontend typecheck + build | ✅ |
@@ -61,7 +63,7 @@ cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r req
 cp .env.example .env            # fill in; never commit
 python -m scripts.seed          # sample games + embeddings (uses GEMINI_API_KEY if set, else offline embedder)
 uvicorn app.main:app --reload   # :8000
-pytest                          # 72 tests (security, reco, ingestion, API integration)
+pytest                          # 77 tests (security, reco, ingestion, API integration)
 
 # 3. Frontend (Vite proxies /api → :8000, so cookies are same-origin like in production)
 cd frontend && npm i && npm run dev   # :5173
@@ -104,6 +106,9 @@ python -m scripts.sync prices --limit 300                 # cross-store prices
 python -m scripts.sync purge-seed                         # remove the demo catalog
 ```
 
+**No direct database access?** `python -m scripts.sync_rest igdb|steam|status` writes the same data through Supabase's REST API over HTTPS
+(needs only `SUPABASE_URL` + `SUPABASE_SECRET_KEY`; same mapping and link validation). Embeddings still come from `scripts.sync embed`.
+
 Safety: base URLs are hard-coded (no SSRF); redirects are not followed; responses are size-capped; all imported text is sanitised and
 injection-scanned; **only https links on an allow-listed set of store domains** are stored or served (`ingest/allowlist.py`, re-checked on
 output); adult-themed IGDB entries are skipped. The web request path never calls these APIs — it only reads the database.
@@ -124,6 +129,13 @@ output); adult-themed IGDB entries are skipped. The web request path never calls
 * Untrusted text (reviews, descriptions, tags, queries) is sanitised, scanned for injection patterns and — when an LLM is added — only ever inserted as delimited, flagged **data** (`security/sanitize.py:wrap_untrusted`).
 
 Full AI threat model and the planned tool-calling design: [`docs/AI_SECURITY.md`](docs/AI_SECURITY.md).
+
+## Languages
+
+UI strings live in `frontend/src/lib/locales/` (`en.ts` is the source; `pt-BR.ts` is type-checked to define exactly the same keys, so the build fails
+if a translation is missing). To add a language: create `<code>.ts` with the same keys, register it in `lib/i18n.tsx` (`LANGS` + `DICTS`).
+The API sends language-neutral reason codes (`{code, args}`) for recommendations and hardware checks; the client renders them. Catalog text from
+IGDB (descriptions) stays in its original language.
 
 ## Operations
 

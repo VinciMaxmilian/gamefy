@@ -58,20 +58,20 @@ class Hardware:
 class Compat:
     verdict: str  # 'recommended' | 'minimum' | 'below_minimum' | 'unknown'
     score: float  # 0..1, used by the ranking engine
-    reasons: list[str]
+    reasons: list[dict]   # [{'code': ..., 'args': [...]}] rendered by the client in the user's language
 
 
-_FIELDS = [("gpu_tier", "GPU"), ("cpu_tier", "CPU"), ("ram_gb", "RAM"), ("vram_gb", "VRAM"), ("storage_gb", "storage")]
+_FIELDS = [("gpu_tier", "gpu"), ("cpu_tier", "cpu"), ("ram_gb", "ram"), ("vram_gb", "vram"), ("storage_gb", "storage")]
 
 
 def check_compat(hw: Hardware, req: dict | None) -> Compat:
     req = req or {}
     minimum, rec = req.get("min") or {}, req.get("rec") or {}
     if not minimum and not rec:
-        return Compat("unknown", 0.5, ["No requirements data for this game."])
+        return Compat("unknown", 0.5, [{"code": "no_req_data", "args": []}])
     below, below_rec, unknown = [], [], []
     checked = 0
-    for field, label in _FIELDS:
+    for field, label in _FIELDS:                       # label is a stable key: gpu, cpu, ram, vram, storage
         have = getattr(hw, field)
         need_min, need_rec = minimum.get(field), rec.get(field) or minimum.get(field)
         if need_min is None and need_rec is None:
@@ -81,15 +81,15 @@ def check_compat(hw: Hardware, req: dict | None) -> Compat:
             continue
         checked += 1
         if need_min is not None and have < need_min:
-            below.append(f"{label} below minimum")
+            below.append({"code": "below_min_field", "args": [label]})
         elif need_rec is not None and have < need_rec:
-            below_rec.append(f"{label} below recommended")
+            below_rec.append({"code": "below_rec_field", "args": [label]})
     if below:
         return Compat("below_minimum", 0.0, below)
     if checked == 0:
-        return Compat("unknown", 0.5, ["Add your hardware to check compatibility."])
+        return Compat("unknown", 0.5, [{"code": "add_hardware", "args": []}])
     if below_rec:
         return Compat("minimum", 0.65, below_rec)
     if unknown:                      # nothing fails, but we cannot vouch for what we do not know
-        return Compat("partial", 0.75, [f"Add {', '.join(unknown)} for a full check."])
-    return Compat("recommended", 1.0, ["Meets recommended requirements."])
+        return Compat("partial", 0.75, [{"code": "add_fields", "args": list(unknown)}])
+    return Compat("recommended", 1.0, [{"code": "meets_rec", "args": []}])

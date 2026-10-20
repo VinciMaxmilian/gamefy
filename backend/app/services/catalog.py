@@ -81,7 +81,7 @@ async def search_games(session: AsyncSession, f: Filters, sort: str, limit: int,
     }.get(sort)
     if order is None:                                   # relevance
         order = ([rank.desc()] if rank is not None else []) + [Game.rating.desc().nulls_last()]
-    rows = (await session.execute(stmt.order_by(*order, Game.title).limit(limit).offset(offset))).scalars().all()
+    rows = (await session.execute(stmt.order_by(*order, Game.title, Game.id).limit(limit).offset(offset))).scalars().all()
     return list(rows), total
 
 

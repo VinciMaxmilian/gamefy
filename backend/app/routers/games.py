@@ -31,7 +31,7 @@ async def list_games(
     max_hours: Annotated[float | None, Query(gt=0, le=2000)] = None,
     sort: Annotated[str, Query(pattern="^(relevance|rating|price_asc|price_desc|newest|shortest)$")] = "relevance",
     limit: Annotated[int, Query(ge=1, le=48)] = 24,
-    offset: Annotated[int, Query(ge=0, le=2000)] = 0,
+    offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
     session: AsyncSession = Depends(get_session),
 ) -> Page:
     response.headers["Cache-Control"] = PUBLIC_CACHE

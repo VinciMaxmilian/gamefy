@@ -2,6 +2,7 @@ import { Suspense, lazy } from "react";
 import { Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { Nav } from "./components/Nav";
+import { useI18n } from "./lib/i18n";
 import { Button } from "./components/ui/button";
 import Home from "./pages/Home";
 
@@ -41,9 +42,10 @@ function ScrollTop() {
 }
 
 export default function App() {
+  const { t } = useI18n();
   return (
     <>
-      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-accent focus:px-4 focus:py-2 focus:text-white">Skip to content</a>
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-accent focus:px-4 focus:py-2 focus:text-white">{t("skip")}</a>
       <Nav />
       <ScrollTop />
       <RecoveryRedirect />
@@ -64,11 +66,11 @@ export default function App() {
             <Route path="/recover" element={<Recover />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/confirm-email" element={<ConfirmEmail />} />
-            <Route path="*" element={<div className="py-32 text-center"><h1 className="text-5xl">404</h1><p className="mt-3 text-fg-2">That page doesn’t exist.</p><Button asChild className="mt-8"><Link to="/">Go home</Link></Button></div>} />
+            <Route path="*" element={<div className="py-32 text-center"><h1 className="text-5xl">404</h1><p className="mt-3 text-fg-2">{t("notfound.text")}</p><Button asChild className="mt-8"><Link to="/">{t("back_home")}</Link></Button></div>} />
           </Routes>
         </Suspense>
       </main>
-      <footer className="border-t border-separator py-8 text-center text-sm text-fg-3">Game data from IGDB, Steam and CheapShark · Gamefy is not affiliated with any game store</footer>
+      <footer className="border-t border-separator py-8 text-center text-sm text-fg-3">{t("footer")}</footer>
     </>
   );
 }

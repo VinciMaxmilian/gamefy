@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { api, errorMessage, setSessionHint } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useI18n } from "@/lib/i18n";
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { me, loading } = useAuth();
@@ -25,6 +26,7 @@ function Shell({ title, subtitle, children, footer }: { title: string; subtitle?
 const Err = ({ msg }: { msg?: string }) => (msg ? <p role="alert" className="rounded-md bg-negative/10 px-3 py-2 text-sm text-negative">{msg}</p> : null);
 
 export function Login() {
+  const { t } = useI18n();
   const nav = useNavigate();
   const { refresh } = useAuth();
   const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
@@ -34,45 +36,47 @@ export function Login() {
   });
   const submit = (e: FormEvent) => { e.preventDefault(); m.mutate(); };
   return (
-    <Shell title="Welcome back" footer={<>New here? <Link to="/signup" className="text-accent">Create an account</Link></>}>
+    <Shell title={t("login.title")} footer={<>{t("login.new")}<Link to="/signup" className="text-accent">{t("login.create")}</Link></>}>
       <form onSubmit={submit} className="space-y-4">
-        <div><Label htmlFor="email">Email</Label><Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-        <div><Label htmlFor="password">Password</Label><Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></div>
+        <div><Label htmlFor="email">{t("field.email")}</Label><Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+        <div><Label htmlFor="password">{t("field.password")}</Label><Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></div>
         <Err msg={m.isError ? errorMessage(m.error) : undefined} />
-        <Button type="submit" size="lg" className="w-full" disabled={m.isPending}>{m.isPending ? "Signing in…" : "Log in"}</Button>
-        <p className="text-center text-sm"><Link to="/recover" className="text-fg-2 hover:text-fg">Forgot password?</Link></p>
+        <Button type="submit" size="lg" className="w-full" disabled={m.isPending}>{m.isPending ? t("login.signing_in") : t("login.submit")}</Button>
+        <p className="text-center text-sm"><Link to="/recover" className="text-fg-2 hover:text-fg">{t("login.forgot")}</Link></p>
       </form>
     </Shell>
   );
 }
 
 export function Signup() {
+  const { t } = useI18n();
   const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
   const m = useMutation({ mutationFn: () => api<{ message: string }>("/auth/signup", { method: "POST", body: { email, password } }) });
-  if (m.isSuccess) return <Shell title="Almost there" subtitle={m.data.message} footer={<Link to="/login" className="text-accent">Go to log in</Link>}><p className="text-center text-fg-2">You can close this tab once you’ve confirmed your email.</p></Shell>;
+  if (m.isSuccess) return <Shell title={t("signup.almost")} subtitle={t("msg.signup")} footer={<Link to="/login" className="text-accent">{t("signup.go_login")}</Link>}><p className="text-center text-fg-2">{t("signup.close_tab")}</p></Shell>;
   return (
-    <Shell title="Create your account" subtitle="Free. Recommendations that learn your taste." footer={<>Have an account? <Link to="/login" className="text-accent">Log in</Link></>}>
+    <Shell title={t("signup.title")} subtitle={t("signup.sub")} footer={<>{t("signup.have")}<Link to="/login" className="text-accent">{t("login.submit")}</Link></>}>
       <form onSubmit={(e) => { e.preventDefault(); m.mutate(); }} className="space-y-4">
-        <div><Label htmlFor="email">Email</Label><Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-        <div><Label htmlFor="password">Password</Label><Input id="password" type="password" autoComplete="new-password" minLength={10} required value={password} onChange={(e) => setPassword(e.target.value)} />
-          <p className="mt-1.5 text-xs text-fg-3">At least 10 characters. A few random words make a great password.</p></div>
+        <div><Label htmlFor="email">{t("field.email")}</Label><Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+        <div><Label htmlFor="password">{t("field.password")}</Label><Input id="password" type="password" autoComplete="new-password" minLength={10} required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <p className="mt-1.5 text-xs text-fg-3">{t("signup.hint")}</p></div>
         <Err msg={m.isError ? errorMessage(m.error) : undefined} />
-        <Button type="submit" size="lg" className="w-full" disabled={m.isPending}>{m.isPending ? "Creating…" : "Sign up"}</Button>
+        <Button type="submit" size="lg" className="w-full" disabled={m.isPending}>{m.isPending ? t("signup.creating") : t("signup.submit")}</Button>
       </form>
     </Shell>
   );
 }
 
 export function Recover() {
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const m = useMutation({ mutationFn: () => api<{ message: string }>("/auth/recover", { method: "POST", body: { email } }) });
   return (
-    <Shell title="Reset your password" subtitle="We’ll email you a link." footer={<Link to="/login" className="text-accent">Back to log in</Link>}>
-      {m.isSuccess ? <p className="text-center text-fg-2">{m.data.message}</p> : (
+    <Shell title={t("recover.title")} subtitle={t("recover.sub")} footer={<Link to="/login" className="text-accent">{t("back_login")}</Link>}>
+      {m.isSuccess ? <p className="text-center text-fg-2">{t("msg.recover")}</p> : (
         <form onSubmit={(e) => { e.preventDefault(); m.mutate(); }} className="space-y-4">
-          <div><Label htmlFor="email">Email</Label><Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+          <div><Label htmlFor="email">{t("field.email")}</Label><Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
           <Err msg={m.isError ? errorMessage(m.error) : undefined} />
-          <Button type="submit" size="lg" className="w-full" disabled={m.isPending}>Send link</Button>
+          <Button type="submit" size="lg" className="w-full" disabled={m.isPending}>{t("recover.send")}</Button>
         </form>)}
     </Shell>
   );
@@ -91,6 +95,7 @@ function readRecoveryParams() {
 }
 
 export function ResetPassword() {
+  const { t } = useI18n();
   const [{ tokenHash, accessToken, usable, expired, failed }] = useState(readRecoveryParams);
   useEffect(() => { if (window.location.hash || window.location.search) history.replaceState(null, "", window.location.pathname); }, []);
   const [password, setPassword] = useState("");
@@ -101,41 +106,41 @@ export function ResetPassword() {
 
   if (m.isSuccess)
     return (
-      <Shell title="Password updated" subtitle="You can now log in with your new password.">
-        <Button asChild size="lg" className="w-full"><Link to="/login">Log in</Link></Button>
+      <Shell title={t("reset.done")} subtitle={t("reset.done_sub")}>
+        <Button asChild size="lg" className="w-full"><Link to="/login">{t("login.submit")}</Link></Button>
       </Shell>
     );
   if (!usable)
     return (
-      <Shell title={expired ? "This link has expired" : "This link doesn’t work"} footer={<Link to="/login" className="text-accent">Back to log in</Link>}>
+      <Shell title={expired ? t("reset.expired") : t("reset.broken")} footer={<Link to="/login" className="text-accent">{t("back_login")}</Link>}>
         <p className="text-center text-fg-2">
-          {expired || failed ? "Recovery links work once and expire quickly. " : "Open the link from your email on this device. "}
-          Request a new one and use it right away.
+          {expired || failed ? t("reset.expired_body") : t("reset.open_device")}
+          {t("reset.request_new_body")}
         </p>
-        <Button asChild size="lg" className="mt-6 w-full"><Link to="/recover">Request a new link</Link></Button>
+        <Button asChild size="lg" className="mt-6 w-full"><Link to="/recover">{t("reset.request_new")}</Link></Button>
       </Shell>
     );
   return (
-    <Shell title="Choose a new password" subtitle="Use at least 10 characters. A few random words work well.">
+    <Shell title={t("reset.title")} subtitle={t("reset.sub")}>
       <form onSubmit={(e) => { e.preventDefault(); if (!mismatch) m.mutate(); }} className="space-y-4">
         <div>
-          <Label htmlFor="pw">New password</Label>
+          <Label htmlFor="pw">{t("reset.new")}</Label>
           <div className="relative">
             <Input id="pw" type={show ? "text" : "password"} autoComplete="new-password" minLength={10} maxLength={128} required autoFocus
               value={password} onChange={(e) => setPassword(e.target.value)} className="pr-16" />
             <button type="button" onClick={() => setShow((v) => !v)} aria-pressed={show}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-fg-2 hover:text-fg">{show ? "Hide" : "Show"}</button>
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-fg-2 hover:text-fg">{show ? t("reset.hide") : t("reset.show")}</button>
           </div>
         </div>
         <div>
-          <Label htmlFor="pw2">Confirm password</Label>
+          <Label htmlFor="pw2">{t("reset.confirm")}</Label>
           <Input id="pw2" type={show ? "text" : "password"} autoComplete="new-password" required value={confirm}
             onChange={(e) => setConfirm(e.target.value)} aria-invalid={mismatch} />
-          {mismatch && <p role="alert" className="mt-1.5 text-sm text-negative">Passwords don’t match.</p>}
+          {mismatch && <p role="alert" className="mt-1.5 text-sm text-negative">{t("reset.mismatch")}</p>}
         </div>
         <Err msg={m.isError ? errorMessage(m.error) : undefined} />
         <Button type="submit" size="lg" className="w-full" disabled={m.isPending || mismatch || password.length < 10}>
-          {m.isPending ? "Updating…" : "Update password"}
+          {m.isPending ? t("reset.updating") : t("reset.update")}
         </Button>
       </form>
     </Shell>
@@ -145,6 +150,7 @@ export function ResetPassword() {
 /** Link from the confirmation e-mail: /confirm-email?token_hash=…&type=signup. The token is scrubbed from the URL
  *  and only consumed when the button is pressed, so link scanners cannot use it up. */
 export function ConfirmEmail() {
+  const { t } = useI18n();
   const [hash] = useState(() => {
     const q = new URLSearchParams(window.location.search);
     return q.get("type") === "signup" ? (q.get("token_hash") ?? "") : "";
@@ -158,21 +164,21 @@ export function ConfirmEmail() {
   });
   if (m.isSuccess)
     return (
-      <Shell title="Email confirmed" subtitle="Your account is ready and you’re signed in.">
-        <Button size="lg" className="w-full" onClick={() => nav("/")}>Start discovering</Button>
+      <Shell title={t("confirm.done")} subtitle={t("confirm.done_sub")}>
+        <Button size="lg" className="w-full" onClick={() => nav("/")}>{t("confirm.start")}</Button>
       </Shell>
     );
   if (!hash)
     return (
-      <Shell title="This link doesn’t work" footer={<Link to="/login" className="text-accent">Back to log in</Link>}>
-        <p className="text-center text-fg-2">Open the link from your confirmation email on this device. If you already confirmed, just log in.</p>
-        <Button asChild size="lg" className="mt-6 w-full"><Link to="/login">Log in</Link></Button>
+      <Shell title={t("reset.broken")} footer={<Link to="/login" className="text-accent">{t("back_login")}</Link>}>
+        <p className="text-center text-fg-2">{t("confirm.broken_body")}</p>
+        <Button asChild size="lg" className="mt-6 w-full"><Link to="/login">{t("login.submit")}</Link></Button>
       </Shell>
     );
   return (
-    <Shell title="Confirm your email" subtitle="One tap and you’re in.">
-      <Err msg={m.isError ? "This link has expired or was already used. Try logging in, or sign up again." : undefined} />
-      <Button size="lg" className="mt-4 w-full" disabled={m.isPending} onClick={() => m.mutate()}>{m.isPending ? "Confirming…" : "Confirm email"}</Button>
+    <Shell title={t("confirm.title")} subtitle={t("confirm.sub")}>
+      <Err msg={m.isError ? t("confirm.failed") : undefined} />
+      <Button size="lg" className="mt-4 w-full" disabled={m.isPending} onClick={() => m.mutate()}>{m.isPending ? t("confirm.confirming") : t("confirm.button")}</Button>
     </Shell>
   );
 }

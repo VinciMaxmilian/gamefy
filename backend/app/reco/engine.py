@@ -40,7 +40,7 @@ class Scored:
     candidate: Candidate
     score: float
     breakdown: dict[str, float]
-    reasons: list[str]
+    reasons: list[dict]
 
 
 def _pref(profile: dict[str, float], keys: list[str]) -> float:
@@ -100,26 +100,26 @@ def score_candidate(c: Candidate, profile: dict[str, float], intent: Intent, w: 
     return Scored(c, round(total, 4), {k: round(v, 3) for k, v in comps.items()}, _reasons(c, profile, intent, comps))
 
 
-def _reasons(c: Candidate, profile: dict[str, float], intent: Intent, comps: dict[str, float]) -> list[str]:
-    """Deterministic, factual explanations (an LLM may later *rephrase* these, never invent them)."""
-    out: list[str] = []
+def _reasons(c: Candidate, profile: dict[str, float], intent: Intent, comps: dict[str, float]) -> list[dict]:
+    """Deterministic, factual explanations as language-neutral codes (an LLM may later *rephrase* these, never invent them)."""
+    out: list[dict] = []
     liked = sorted(((profile[k], k) for k in [f"genre:{g}" for g in c.genres] + [f"tag:{t}" for t in c.tags] if profile.get(k, 0) > 0.3), reverse=True)
     if liked:
-        out.append("Matches your taste: " + ", ".join(k.split(":", 1)[1] for _, k in liked[:3]))
+        out.append({"code": "taste", "args": [k.split(":", 1)[1] for _, k in liked[:3]]})
     if intent.genres & set(c.genres):
-        out.append("Genre you asked for: " + ", ".join(sorted(intent.genres & set(c.genres))))
+        out.append({"code": "genre_asked", "args": sorted(intent.genres & set(c.genres))})
     if comps["semantic_similarity"] > 0.55:
-        out.append("Very similar to what you described")
+        out.append({"code": "similar", "args": []})
     if intent.max_duration_hours and c.avg_duration_hours and c.avg_duration_hours <= intent.max_duration_hours:
-        out.append(f"About {c.avg_duration_hours:g}h to finish")
+        out.append({"code": "duration", "args": [f"{c.avg_duration_hours:g}"]})
     if intent.max_price_cents is not None and c.price_cents is not None and c.price_cents <= intent.max_price_cents:
-        out.append("Within your budget")
+        out.append({"code": "budget", "args": []})
     if c.compat and c.compat.verdict == "recommended":
-        out.append("Runs well on your PC")
+        out.append({"code": "runs_well", "args": []})
     elif c.compat and c.compat.verdict == "below_minimum":
-        out.append("Below minimum requirements for your PC")
+        out.append({"code": "below_min", "args": []})
     if (c.rating or 0) >= 90:
-        out.append("Highly rated")
+        out.append({"code": "highly_rated", "args": []})
     return out[:4]
 
 

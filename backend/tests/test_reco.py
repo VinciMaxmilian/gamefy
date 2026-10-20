@@ -73,3 +73,13 @@ def test_intent_parser_pt_and_en():
     assert q.intent.max_price_cents == 2000 and q.intent.max_duration_hours == 10 and "co-op" in q.intent.features
     r = parse_query("Gostei muito de Witcher 3 e Skyrim, mas não quero outro jogo de 100 horas")
     assert {"Witcher 3", "Skyrim"} <= set(r.similar_titles) and r.intent.max_duration_hours == 30
+
+
+def test_reasons_are_language_neutral_codes():
+    from app.reco.hardware import Hardware, check_compat
+    out = rank([_c("rpg-short", ["rpg"], hours=20, rating=95, sim=0.9)], {"genre:rpg": 0.9}, Intent(genres={"rpg"}, max_duration_hours=30), RecoWeights())
+    codes = {r["code"] for r in out[0].reasons}
+    assert {"taste", "genre_asked", "duration"} <= codes and all(isinstance(r["args"], list) for r in out[0].reasons)
+    c = check_compat(Hardware(gpu_tier=1, ram_gb=64), {"min": {"gpu_tier": 4, "ram_gb": 8}})
+    assert c.verdict == "below_minimum" and c.reasons == [{"code": "below_min_field", "args": ["gpu"]}]
+    assert check_compat(Hardware(gpu_tier=9), {"min": {"gpu_tier": 4, "ram_gb": 8}}).reasons == [{"code": "add_fields", "args": ["ram"]}]

@@ -1,12 +1,13 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { currentLocale, termLabel, translate } from "./i18n";
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
 export function formatPrice(cents: number | null, currency = "USD"): string {
   if (cents === null) return "—";
-  if (cents === 0) return "Free";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
+  if (cents === 0) return translate("price.free");
+  return new Intl.NumberFormat(currentLocale(), { style: "currency", currency }).format(cents / 100);
 }
 
 export function hoursLabel(h: number | null): string | null {
@@ -29,5 +30,5 @@ export const safeImageUrl = (u: string | null): string | null => {
   }
 };
 
-const ACRONYMS = new Set(["rpg", "fps", "rts", "pc", "ps4", "ps5", "mmo", "moba", "4x", "2d", "3d"]);
-export const label = (s: string) => s.replace(/-/g, " ").split(" ").map((w) => (ACRONYMS.has(w.toLowerCase()) ? w.toUpperCase() : w)).join(" ");
+/** Display name for a catalog slug (genre, tag, mode) in the current language. */
+export const label = termLabel;
