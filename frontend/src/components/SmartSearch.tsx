@@ -17,8 +17,8 @@ export function SmartSearch({ size = "lg", initial = "", autoFocus = false }: { 
   return (
     <div className="w-full">
       <form onSubmit={(e) => { e.preventDefault(); go(q); }} role="search"
-        className={cn("ai-ring flex items-center gap-3 rounded-full bg-surface pl-5 pr-2 shadow-pop transition focus-within:scale-[1.01]", size === "lg" ? "h-16" : "h-11")}>
-        <span aria-hidden className="ai-text text-xl font-semibold">✦</span>
+        className={cn("flex items-center gap-3 rounded-full bg-surface pl-5 pr-2 shadow-card ring-1 ring-separator transition focus-within:ring-2 focus-within:ring-accent", size === "lg" ? "h-16" : "h-11")}>
+        <span aria-hidden className="spark text-xl">✦</span>
         <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} autoFocus={autoFocus} aria-label="Describe the game you want to play"
           placeholder="Tell us what you want to play…"
           className={cn("min-w-0 flex-1 bg-transparent text-fg outline-none placeholder:text-fg-3", size === "lg" ? "text-lg" : "text-[15px]")} />

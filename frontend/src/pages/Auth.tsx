@@ -16,7 +16,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 function Shell({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
   return (
     <div className="mx-auto max-w-md pt-6 md:pt-14">
-      <div className="mb-8 text-center"><div className="ai-text mb-3 text-3xl">✦</div><h1 className="text-3xl md:text-4xl">{title}</h1>{subtitle && <p className="mt-2 text-fg-2">{subtitle}</p>}</div>
+      <div className="mb-8 text-center"><h1 className="text-3xl md:text-4xl">{title}</h1>{subtitle && <p className="mt-2 text-fg-2">{subtitle}</p>}</div>
       <div className="rounded-xl bg-surface p-6 shadow-card md:p-8">{children}</div>
       {footer && <p className="mt-6 text-center text-sm text-fg-2">{footer}</p>}
     </div>

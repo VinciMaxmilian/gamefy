@@ -20,7 +20,7 @@ function Bars({ items, negative }: { items: TasteItem[]; negative?: boolean }) {
         <li key={t.key} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5">
           <span className="capitalize">{label(t.label)} <span className="text-xs text-fg-3">{t.kind}</span></span>
           <span className="tabular-nums text-sm text-fg-2">{t.weight > 0 ? "+" : ""}{t.weight.toFixed(2)}</span>
-          <div className="col-span-2 h-1.5 overflow-hidden rounded-full bg-surface-2"><div className={cn("h-full rounded-full transition-[width] duration-700 ease-[var(--ease-spring)]", negative ? "bg-negative" : "bg-gradient-to-r from-ai-from to-ai-to")} style={{ width: `${Math.abs(t.weight) * 100}%` }} /></div>
+          <div className="col-span-2 h-1.5 overflow-hidden rounded-full bg-surface-2"><div className={cn("h-full rounded-full transition-[width] duration-700 ease-[var(--ease-spring)]", negative ? "bg-negative" : "bg-accent")} style={{ width: `${Math.abs(t.weight) * 100}%` }} /></div>
         </li>
       ))}
     </ul>
@@ -47,12 +47,12 @@ export default function Profile() {
       <div className="space-y-12">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div><h1 className="text-4xl">Your profile</h1><p className="mt-1 text-fg-2">{me?.email}</p></div>
-          <div className="flex items-center gap-3"><Badge tone={me?.plan === "premium" ? "ai" : "neutral"} className="px-3 py-1 text-sm">{me?.plan === "premium" ? "✦ Premium" : "Free plan"}</Badge>
+          <div className="flex items-center gap-3"><Badge tone={me?.plan === "premium" ? "accent" : "neutral"} className="px-3 py-1 text-sm">{me?.plan === "premium" ? "✦ Premium" : "Free plan"}</Badge>
             {me && <span className="text-sm text-fg-3">{me.usage.smart_search_today}/{me.limits.smart_search_per_day} smart searches today</span>}</div>
         </header>
 
         <section className="space-y-5">
-          <div><h2 className="text-2xl"><span className="ai-text">✦</span> Your taste</h2><p className="mt-1 text-fg-2">Built from your wishlist, library, ratings and what you skip. It fades over time, so it follows you.</p></div>
+          <div><h2 className="text-2xl"><span className="spark">✦</span> Your taste</h2><p className="mt-1 text-fg-2">Built from your wishlist, library, ratings and what you skip. It fades over time, so it follows you.</p></div>
           {taste.data && taste.data.likes.length === 0 && taste.data.dislikes.length === 0 ? (
             <p className="rounded-lg bg-surface p-6 text-fg-2">Nothing yet. <Link to="/games" className="text-accent">Add a few games</Link> to your wishlist or library and rate the ones you know.</p>
           ) : (

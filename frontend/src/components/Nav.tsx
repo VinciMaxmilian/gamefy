@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { ThemeMenu } from "./ThemeMenu";
 import { Button } from "./ui/button";
 
 const link = ({ isActive }: { isActive: boolean }) =>
@@ -15,7 +16,7 @@ export function Nav() {
   return (
     <header className="material fixed inset-x-0 top-0 z-40 border-b border-separator">
       <div className="mx-auto flex h-[var(--nav-h)] max-w-[1280px] items-center gap-3 px-4 md:px-8">
-        <Link to="/" className="flex items-center gap-2 text-[17px] font-bold tracking-tight"><span className="ai-text text-xl">✦</span> Gamefy</Link>
+        <Link to="/" className="flex items-center gap-2 text-[17px] font-bold tracking-tight">Gamefy</Link>
         <nav className="ml-4 hidden items-center gap-1 md:flex" aria-label="Main">
           <NavLink to="/" end className={link}>Discover</NavLink>
           <NavLink to="/games" className={link}>Store</NavLink>
@@ -25,6 +26,7 @@ export function Nav() {
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="ghost" size="icon" aria-label="Smart search" onClick={() => nav("/#search")}><Search className="size-5" /></Button>
+          <ThemeMenu />
           {me ? (
             <div className="relative">
               <Button variant="secondary" size="icon" aria-label="Account menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}><User className="size-5" /></Button>

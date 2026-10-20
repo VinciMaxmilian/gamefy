@@ -11,7 +11,6 @@ const button = cva(
         primary: "bg-accent text-white hover:bg-accent-hover",
         secondary: "bg-surface-2 text-fg hover:bg-surface-3",
         ghost: "text-fg-2 hover:bg-surface-2 hover:text-fg",
-        ai: "bg-gradient-to-r from-ai-from to-ai-to text-white hover:brightness-110",
         danger: "bg-negative/15 text-negative hover:bg-negative/25",
       },
       size: { sm: "h-8 rounded-full px-3.5 text-sm", md: "h-10 rounded-full px-5 text-[15px]", lg: "h-12 rounded-full px-7 text-base", icon: "size-10 rounded-full" },

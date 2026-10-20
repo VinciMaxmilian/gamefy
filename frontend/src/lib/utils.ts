@@ -14,13 +14,11 @@ export function hoursLabel(h: number | null): string | null {
   return h < 1 ? "<1h" : `~${Math.round(h)}h`;
 }
 
-/** Deterministic cover gradient so the UI never needs third-party art. */
-export function coverGradient(seed: string): string {
+/** Deterministic, quiet placeholder tint (a whisper of hue over the surface color) so missing art never looks loud. */
+export function coverTint(seed: string): string {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  const a = h % 360;
-  const b = (a + 40 + (h >> 8) % 80) % 360;
-  return `linear-gradient(135deg, hsl(${a} 62% 34%), hsl(${b} 70% 18%))`;
+  return `color-mix(in srgb, hsl(${h % 360} 28% 50%) 11%, var(--surface-2))`;
 }
 
 export const safeImageUrl = (u: string | null): string | null => {

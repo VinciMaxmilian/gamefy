@@ -123,7 +123,7 @@ export default function GameDetail() {
       </div>
 
       {similar.data && similar.data.length > 0 && (
-        <Rail title={<><span className="ai-text">✦</span> More like this</>} subtitle="Similar in gameplay, mood and story.">
+        <Rail title={<><span className="spark">✦</span> More like this</>} subtitle="Similar in gameplay, mood and story.">
           {similar.data.slice(0, 4).map((s) => <GameCardView key={s.slug} game={s} />)}
         </Rail>
       )}

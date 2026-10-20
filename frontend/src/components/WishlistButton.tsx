@@ -23,7 +23,7 @@ export function WishlistButton({ slug, variant = "icon" }: { slug: string; varia
       </button>
     );
   return (
-    <button onClick={click} aria-label={aria} aria-pressed={on} className="material grid size-9 place-items-center rounded-full text-white transition hover:scale-110 active:scale-95">
+    <button onClick={click} aria-label={aria} aria-pressed={on} className="material grid size-9 place-items-center rounded-full text-fg transition hover:scale-105 active:scale-95">
       <Heart className={cn("size-[18px]", on && "fill-negative text-negative")} />
     </button>
   );

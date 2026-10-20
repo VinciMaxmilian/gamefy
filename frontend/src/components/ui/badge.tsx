@@ -10,7 +10,6 @@ const badge = cva("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 tex
       positive: "bg-positive/15 text-positive",
       warning: "bg-warning/15 text-warning",
       negative: "bg-negative/15 text-negative",
-      ai: "bg-ai-from/15 text-ai-from",
     },
   },
   defaultVariants: { tone: "neutral" },

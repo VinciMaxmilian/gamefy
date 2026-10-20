@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { CardSkeletons, GameCardView } from "@/components/GameCardView";
 import { Rail } from "@/components/Rail";
+import { Spark } from "@/components/Spark";
 import { SmartSearch } from "@/components/SmartSearch";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -23,9 +24,8 @@ export default function Home() {
   return (
     <div className="space-y-20">
       <section className="relative mx-auto max-w-4xl pt-8 text-center md:pt-16">
-        <div aria-hidden className="pointer-events-none absolute -top-24 left-1/2 -z-10 h-[420px] w-[820px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--ai-from)_28%,transparent),transparent)] blur-2xl" />
         <h1 className="text-balance text-[2.6rem] leading-[1.05] md:text-[3.75rem]">
-          Don’t search for a game.<br /><span className="ai-text">Say what you want to play.</span>
+          Don’t search for a game.<br /><span className="text-fg-2">Say what you want to play.</span>
         </h1>
         <p className="mx-auto mt-5 max-w-xl text-lg text-fg-2 md:text-xl">Describe the mood, the length, the budget, your PC. We’ll find what fits.</p>
         <div className="mt-9"><SmartSearch autoFocus={hash === "#search"} /></div>
@@ -34,7 +34,7 @@ export default function Home() {
 
       {me && (
         <Rail
-          title={<><span className="ai-text">✦</span> Picked for you</>}
+          title={<><Spark /> Picked for you</>}
           subtitle={forYou.data && !forYou.data.personalized ? "Add games to your wishlist or library and these will learn your taste." : "Based on what you play, save and rate."}
           action={<Button asChild variant="ghost" size="sm"><Link to="/profile">Your taste</Link></Button>}>
           {forYou.isLoading ? <CardSkeletons n={4} /> : forYou.data?.items.slice(0, 8).map((r) => <GameCardView key={r.game.slug} game={r.game} reasons={r.reasons} compat={r.compatibility?.verdict} />)}

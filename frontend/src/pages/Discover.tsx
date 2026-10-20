@@ -33,7 +33,7 @@ export default function Discover() {
         </Gate>
       )}
       {err?.status === 429 && <Gate title="You’ve used today’s smart searches" body="Free accounts get a few each day. Classic search and your recommendations are always available.">
-        <Button asChild variant="ai"><Link to="/premium">✦ See Premium</Link></Button><Button asChild variant="secondary"><Link to={`/games?q=${encodeURIComponent(q)}`}>Classic search</Link></Button></Gate>}
+        <Button asChild><Link to="/premium">See Premium</Link></Button><Button asChild variant="secondary"><Link to={`/games?q=${encodeURIComponent(q)}`}>Classic search</Link></Button></Gate>}
       {err && err.status !== 429 && <Gate title="Smart search is unavailable right now" body={errorMessage(err)}>
         <Button asChild variant="secondary"><Link to={`/games?q=${encodeURIComponent(q)}`}>Use classic search</Link></Button></Gate>}
 
@@ -41,8 +41,8 @@ export default function Discover() {
       {res.data && (
         <>
           <div className="space-y-3">
-            <p className="text-fg-2"><span className="ai-text">✦</span> Here’s what we understood</p>
-            <div className="flex flex-wrap gap-2">{chips.length ? chips.map((c) => <Badge key={c} tone="ai" className="px-3 py-1 text-sm">{label(c)}</Badge>) : <span className="text-sm text-fg-3">Matching by overall meaning.</span>}</div>
+            <p className="text-fg-2"><span className="spark">✦</span> Here’s what we understood</p>
+            <div className="flex flex-wrap gap-2">{chips.length ? chips.map((c) => <Badge key={c} tone="accent" className="px-3 py-1 text-sm">{label(c)}</Badge>) : <span className="text-sm text-fg-3">Matching by overall meaning.</span>}</div>
             <p className="text-sm text-fg-3">{res.data.remaining_today} smart searches left today</p>
           </div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
