@@ -25,6 +25,7 @@ Browser ──► Netlify (React SPA)  ──/api/*  proxy──►  Vercel (Fas
 | **Level 2** semantic search (`/search/smart`): rule-based intent parser (PT/EN) + embeddings | ✅ |
 | Configurable ranking (`Score = Σ wᵢ·componentᵢ`) with explainable reasons | ✅ |
 | Hardware compatibility (deterministic tiers) | ✅ |
+| Real catalog sync + "where to buy" store links and per-store prices | ✅ |
 | Plans (visitor/free/premium/admin), per-plan quotas, rate limiting, cost telemetry | ✅ |
 | Chat / comparison / curation by LLM (Premium) | ⏳ next phase (see `docs/AI_SECURITY.md`) |
 | Payments | ⏳ plan is set server-side in `profiles.plan` (no client path to change it) |
@@ -50,13 +51,14 @@ netlify.toml                        build, /api proxy, security headers + CSP
 # 1. Database (any Postgres 15+ with pgvector; Supabase CLI or local)
 psql -f backend/scripts/local_bootstrap.sql   # ONLY for a plain local PG: stubs auth schema/roles
 psql -f supabase/migrations/0001_init.sql
+psql -f supabase/migrations/0002_store_links.sql
 
 # 2. Backend
 cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.txt
 cp .env.example .env            # fill in; never commit
 python -m scripts.seed          # sample games + embeddings (uses GEMINI_API_KEY if set, else offline embedder)
 uvicorn app.main:app --reload   # :8000
-pytest                          # 38 tests (security, reco, API integration)
+pytest                          # 59 tests (security, reco, API integration)
 
 # 3. Frontend (Vite proxies /api → :8000, so cookies are same-origin like in production)
 cd frontend && npm i && npm run dev   # :5173
@@ -64,7 +66,7 @@ cd frontend && npm i && npm run dev   # :5173
 
 ## Deploy
 
-1. **Supabase** — run `supabase/migrations/0001_init.sql` in the SQL editor (or `supabase db push`).
+1. **Supabase** — run `supabase/migrations/0001_init.sql` then `0002_store_links.sql` in the SQL editor (or `supabase db push`).
    Auth → URL Configuration: set *Site URL* to your Netlify URL and add `https://<site>/reset-password` to *Redirect URLs*.
    Enable email confirmation if you want it (the API works either way).
 2. **Vercel** (backend) — project root `backend/`. Set the env vars from `backend/.env.example`
@@ -76,6 +78,35 @@ cd frontend && npm i && npm run dev   # :5173
    (the browser never talks to Supabase directly).
 5. *(Recommended)* create a free Upstash Redis and set `UPSTASH_REDIS_REST_URL/TOKEN` — without it rate limits are per serverless instance (approximate).
 6. Give a user Premium: `update profiles set plan = 'premium' where id = '<uuid>';`
+
+## Catalog sync (IGDB + Steam + CheapShark)
+
+The demo catalog is replaced by real data through offline jobs (`backend/scripts/sync.py`, scheduled by
+`.github/workflows/catalog-sync.yml` — not by Vercel, whose function time limits are too short for rate-limited APIs).
+
+| Job | Source | Writes |
+|---|---|---|
+| `igdb` | IGDB (Twitch OAuth, Apicalypse) | games, genres/tags/modes/platforms, ratings, art, **store links** (Steam/Epic/GOG… from IGDB `websites`), `steam_appid`; then (re)builds embeddings |
+| `steam` / `steam-changed` | Steam `appdetails` (+ official `IStoreService/GetAppList` to find apps changed since X) | PC requirements → deterministic tiers, price, art |
+| `prices` | CheapShark (`/games?steamAppID=` → `/games?id=` deals) | per-store prices with CheapShark redirect links |
+
+```bash
+cd backend && export DATABASE_URL=… IGDB_CLIENT_ID=… IGDB_CLIENT_SECRET=… GEMINI_API_KEY=…
+psql "$DATABASE_URL" -f ../supabase/migrations/0002_store_links.sql
+python -m scripts.sync igdb --pages 3 --min-ratings 100   # ≈300 well-known games
+python -m scripts.sync steam --limit 300                  # requirements + Steam price
+python -m scripts.sync prices --limit 300                 # cross-store prices
+python -m scripts.sync purge-seed                         # remove the demo catalog
+```
+
+Safety: base URLs are hard-coded (no SSRF); redirects are not followed; responses are size-capped; all imported text is sanitised and
+injection-scanned; **only https links on an allow-listed set of store domains** are stored or served (`ingest/allowlist.py`, re-checked on
+output); adult-themed IGDB entries are skipped. The web request path never calls these APIs — it only reads the database.
+
+> **Check each provider's terms before launch.** IGDB's free tier is for non-commercial use and has attribution requirements; Steam
+> `appdetails` is an unofficial endpoint (rate limit ≈200 req/5 min, so the job throttles to 1 req/1.6 s); CheapShark asks for a
+> descriptive User-Agent and referral links via its redirect. Cover art belongs to the publishers — the UI hot-links it from the
+> providers' CDNs and credits the sources in the footer.
 
 ## Security model (short version)
 

@@ -31,5 +31,5 @@ export const safeImageUrl = (u: string | null): string | null => {
   }
 };
 
-const ACRONYMS = new Set(["rpg", "fps", "rts", "pc", "ps5", "4x", "2d", "3d"]);
+const ACRONYMS = new Set(["rpg", "fps", "rts", "pc", "ps4", "ps5", "mmo", "moba", "4x", "2d", "3d"]);
 export const label = (s: string) => s.replace(/-/g, " ").split(" ").map((w) => (ACRONYMS.has(w.toLowerCase()) ? w.toUpperCase() : w)).join(" ");

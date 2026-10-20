@@ -46,6 +46,8 @@ class Game(Base):
     cover_url: Mapped[str | None] = mapped_column(Text)
     req: Mapped[dict] = mapped_column(JSONB, default=dict)
     source: Mapped[str] = mapped_column(String, default="seed")
+    igdb_id: Mapped[int | None] = mapped_column(BigInteger, unique=True)
+    steam_appid: Mapped[int | None] = mapped_column(Integer)
     search = mapped_column(TSVECTOR, deferred=True)
 
 
@@ -55,6 +57,19 @@ class GameEmbedding(Base):
     embedding = mapped_column(Vector(EMBED_DIM))
     doc_hash: Mapped[str] = mapped_column(String)
     model: Mapped[str] = mapped_column(String)
+
+
+class StoreLink(Base):
+    __tablename__ = "store_links"
+    game_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"), primary_key=True)
+    store: Mapped[str] = mapped_column(String, primary_key=True)
+    source: Mapped[str] = mapped_column(String, primary_key=True)
+    url: Mapped[str] = mapped_column(Text)
+    price_cents: Mapped[int | None] = mapped_column(Integer)
+    normal_price_cents: Mapped[int | None] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String, default="USD")
+    external_id: Mapped[str | None] = mapped_column(String)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Wishlist(Base):

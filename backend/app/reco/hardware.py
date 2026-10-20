@@ -8,8 +8,8 @@ _GPU = [
     (r"rtx\s*50[67]0|rtx\s*4070\s*ti|rx\s*7900|rtx\s*3090|rtx\s*3080", 9),
     (r"rtx\s*4070|rtx\s*3070|rx\s*7800|rx\s*6800|rx\s*7700|rtx\s*5060", 8),
     (r"rtx\s*4060|rtx\s*3060\s*ti|rx\s*6700|rx\s*7600|rx\s*6650|arc\s*b580|rtx\s*2080|rtx\s*2070", 7),
-    (r"rtx\s*3060|rtx\s*2060|gtx\s*1080|gtx\s*1070|rx\s*6600|rx\s*5700|rx\s*580|arc\s*a750", 6),
-    (r"gtx\s*1660|gtx\s*1060|rx\s*570|rx\s*5500|gtx\s*980|arc\s*a380", 5),
+    (r"rtx\s*3060|rtx\s*2060|gtx\s*1080|gtx\s*1070|rx\s*6600|rx\s*5700|arc\s*a750", 6),
+    (r"gtx\s*1660|gtx\s*1060|rx\s*5[78]0|rx\s*5500|gtx\s*980|arc\s*a380", 5),
     (r"gtx\s*1650|gtx\s*1050|gtx\s*970|rx\s*560|rx\s*470|gtx\s*960", 4),
     (r"gtx\s*750|gtx\s*950|gtx\s*1030|rx\s*550|gt\s*1030|rx\s*460", 3),
     (r"radeon\s*(780m|680m|graphics)|vega\s*[0-9]+|iris\s*xe|uhd\s*(graphics)?\s*7|m[1-4]\s*(pro|max|ultra)?", 3),
@@ -21,7 +21,7 @@ _CPU = [
     (r"i7-(9|10|11)\d{3}|i5-1[0-2]\d{3}|ryzen\s*5\s*[35]\d{3}|ryzen\s*7\s*[23]\d{3}|m1", 7),
     (r"i5-[89]\d{3}|i7-[78]\d{3}|ryzen\s*5\s*[12]\d{3}|ryzen\s*7\s*1\d{3}", 6),
     (r"i5-[67]\d{3}|i7-[46]\d{3}|i3-1\d{4}|ryzen\s*3", 5),
-    (r"i3-[6-9]\d{3}|i5-[45]\d{3}|i7-[23]\d{3}|fx-?\d+|athlon", 4),
+    (r"i3-[6-9]\d{3}|i5-[45]\d{3}|i[357]-[23]\d{3}|fx-?\d+|athlon", 4),
     (r"i3|pentium|celeron|core\s*2", 2),
 ]
 
@@ -29,7 +29,7 @@ _CPU = [
 def _match(table: list[tuple[str, int]], text: str | None) -> int | None:
     if not text:
         return None
-    t = re.sub(r"(nvidia|geforce|amd|radeon|intel|core)\s*", lambda m: m.group(0) if m.group(1) == "core" else "", text.lower())
+    t = text.lower()
     t = re.sub(r"\s+", " ", t)
     for pattern, tier in table:
         if re.search(pattern, t):

@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 
 Slug = Annotated[str, StringConstraints(pattern=r"^[a-z0-9-]{1,100}$")]
 Token = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9 +&'.-]{0,39}$", to_lower=True)]
-Platform = Literal["pc", "ps5", "xbox", "switch", "mac", "linux"]
+Platform = Literal["pc", "ps5", "ps4", "xbox", "switch", "mac", "linux"]
 
 
 class Strict(BaseModel):

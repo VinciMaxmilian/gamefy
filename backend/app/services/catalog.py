@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Game
+from ..ingest.allowlist import STORE_NAMES, classify_url
+from ..models import Game, StoreLink
 from ..schemas import GameCard, GameDetail
 
 SORTS = {"relevance", "rating", "price_asc", "price_desc", "newest", "shortest"}
@@ -92,3 +93,31 @@ async def facets(session: AsyncSession) -> dict[str, list[dict]]:
         rows = (await session.execute(select(sub.c.v, func.count()).group_by(sub.c.v).order_by(func.count().desc()).limit(60))).all()
         out[name] = [{"value": v, "count": c} for v, c in rows]
     return out
+
+
+_DIRECT = {"steam": 0, "igdb": 1, "cheapshark": 2}
+
+
+async def store_offers(session: AsyncSession, game_id) -> list[dict]:
+    """One offer per store: cheapest known price; link prefers the store's own URL over a redirect.
+    URLs are re-validated against the allow-list on the way out (defence in depth)."""
+    rows = (await session.execute(select(StoreLink).where(StoreLink.game_id == game_id))).scalars().all()
+    by_store: dict[str, list[StoreLink]] = {}
+    for r in rows:
+        if (c := classify_url(r.url)):
+            by_store.setdefault(r.store, []).append(r)
+    offers = []
+    for store, items in by_store.items():
+        priced = [i for i in items if i.price_cents is not None]
+        best = min(priced, key=lambda i: i.price_cents) if priced else None
+        link = min(items, key=lambda i: _DIRECT.get(i.source, 9))
+        normal = best.normal_price_cents if best else None
+        offers.append({
+            "store": store, "name": STORE_NAMES.get(store, store.title()), "url": link.url,
+            "price_cents": best.price_cents if best else None, "normal_price_cents": normal,
+            "discount_percent": round(100 * (1 - best.price_cents / normal)) if best and normal and normal > best.price_cents else 0,
+            "currency": best.currency if best else "USD",
+            "updated_at": max(i.updated_at for i in items).isoformat(),
+        })
+    offers.sort(key=lambda o: (o["price_cents"] is None, o["price_cents"] or 0, o["name"]))
+    return offers

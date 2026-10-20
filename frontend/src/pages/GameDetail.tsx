@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, Star } from "lucide-react";
+import { Check, ExternalLink, Star } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Cover } from "@/components/Cover";
@@ -67,7 +67,7 @@ export default function GameDetail() {
           {v && g.compatibility && <div className={cn("rounded-lg p-4", `bg-${v.tone === "neutral" ? "surface-2" : v.tone}/10`)}><p className="font-medium">{v.text}</p><p className="mt-1 text-sm text-fg-2">{g.compatibility.reasons.join(" · ")}</p></div>}
           {me && !g.compatibility && <p className="text-sm text-fg-3"><Link to="/profile" className="text-accent">Add your PC</Link> to see if it runs.</p>}
           <div className="flex flex-wrap items-center gap-3 pt-1">
-            <span className="mr-2 text-3xl font-semibold tracking-tight">{formatPrice(g.price_cents, g.currency)}</span>
+            <span className="mr-2 text-3xl font-semibold tracking-tight">{g.stores.some((o) => o.price_cents !== null) ? <span className="mr-1.5 text-base font-normal text-fg-3">from</span> : null}{formatPrice(g.price_cents, g.currency)}</span>
             <Button size="lg" onClick={() => me ? addLibrary.mutate(!owned) : nav("/login")} variant={owned ? "secondary" : "primary"}>{owned ? <><Check className="size-5" />In library</> : "Add to library"}</Button>
             <WishlistButton slug={g.slug} variant="full" />
           </div>
@@ -81,6 +81,29 @@ export default function GameDetail() {
           )}
         </div>
       </div>
+
+      {g.stores.length > 0 && (
+        <section className="space-y-4" aria-labelledby="buy">
+          <h2 id="buy" className="text-2xl">Where to buy</h2>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {g.stores.map((o) => (
+              <li key={o.store}>
+                {/* Outbound link: allow-listed host (validated server-side), no referrer/opener leakage, marked as sponsored. */}
+                <a href={o.url} target="_blank" rel="noopener noreferrer nofollow sponsored"
+                  className="lift flex items-center justify-between gap-4 rounded-lg bg-surface p-4 shadow-card">
+                  <div><div className="font-medium">{o.name}</div>
+                    <div className="mt-0.5 flex items-center gap-2 text-sm text-fg-3">
+                      {o.discount_percent > 0 && <Badge tone="positive">-{o.discount_percent}%</Badge>}
+                      {o.normal_price_cents !== null && o.discount_percent > 0 && <s>{formatPrice(o.normal_price_cents, o.currency)}</s>}
+                      {o.price_cents === null && <span>View price</span>}
+                    </div></div>
+                  <div className="flex items-center gap-2 text-lg font-semibold">{o.price_cents !== null && formatPrice(o.price_cents, o.currency)}<ExternalLink className="size-4 text-fg-3" aria-hidden /></div>
+                </a>
+              </li>))}
+          </ul>
+          <p className="text-xs text-fg-3">Prices in USD from the stores and CheapShark, updated periodically — confirm on the store before buying. Some links may earn Gamefy a commission.</p>
+        </section>
+      )}
 
       <div className="grid gap-10 lg:grid-cols-2">
         <section className="space-y-4"><h2 className="text-2xl">About</h2><p className="whitespace-pre-line text-fg-2">{g.description}</p>

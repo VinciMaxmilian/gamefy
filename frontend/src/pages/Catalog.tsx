@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import type { Facets, Page } from "@/lib/types";
 import { cn, label } from "@/lib/utils";
 
-const PLATFORMS = ["pc", "ps5", "xbox", "switch", "mac", "linux"];
+const PLATFORMS = ["pc", "ps5", "ps4", "xbox", "switch", "mac", "linux"];
 const SORTS: [string, string][] = [["relevance", "Relevance"], ["rating", "Top rated"], ["newest", "Newest"], ["price_asc", "Price: low to high"], ["price_desc", "Price: high to low"], ["shortest", "Shortest"]];
 
 export default function Catalog() {

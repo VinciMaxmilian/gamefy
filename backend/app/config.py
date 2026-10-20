@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     max_body_bytes: int = 64 * 1024
     trusted_ip_header: str = "x-nf-client-connection-ip"
 
+    # Ingestion (offline jobs only; never used at request time).
+    igdb_client_id: str = ""
+    igdb_client_secret: str = ""
+    steam_web_api_key: str = ""           # optional: IStoreService/GetAppList (changed-since discovery)
+    store_country: str = "us"             # Steam price region (cc)
+
     upstash_redis_rest_url: str = ""
     upstash_redis_rest_token: str = ""
 

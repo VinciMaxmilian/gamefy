@@ -8,6 +8,7 @@ import re
 import unicodedata
 
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f​-‏‪-‮⁠-⁤﻿]")
+_INLINE = re.compile(r"</?(?:b|i|em|strong|u|span|a|font|small|sub|sup|mark)\b[^>]{0,200}>", re.I)
 _TAGS = re.compile(r"<[^>]{0,200}>")
 _WS = re.compile(r"\s+")
 
@@ -37,7 +38,7 @@ def clean_text(value: str | None, max_len: int = 2000, strip_markup: bool = True
     text = unicodedata.normalize("NFKC", str(value))
     text = _CONTROL.sub("", text)
     if strip_markup:
-        text = _TAGS.sub(" ", text)
+        text = _TAGS.sub(" ", _INLINE.sub("", text))
     return _WS.sub(" ", text).strip()[:max_len]
 
 

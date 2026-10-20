@@ -50,7 +50,7 @@ export default function App() {
           </Routes>
         </Suspense>
       </main>
-      <footer className="border-t border-separator py-8 text-center text-sm text-fg-3">Gamefy · Sample catalog for demonstration · Not affiliated with any game store</footer>
+      <footer className="border-t border-separator py-8 text-center text-sm text-fg-3">Game data from IGDB, Steam and CheapShark · Gamefy is not affiliated with any game store</footer>
     </>
   );
 }

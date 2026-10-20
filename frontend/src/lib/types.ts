@@ -4,7 +4,9 @@ export interface GameCard {
   rating: number | null; avg_duration_hours: number | null; release_date: string | null;
 }
 export interface Compatibility { verdict: "recommended" | "partial" | "minimum" | "below_minimum" | "unknown"; reasons: string[] }
+export interface StoreOffer { store: string; name: string; url: string; price_cents: number | null; normal_price_cents: number | null; discount_percent: number; currency: string; updated_at: string }
 export interface GameDetail extends GameCard {
+  stores: StoreOffer[];
   description: string; developer: string | null; features: string[]; difficulty: number | null;
   rating_count: number; req: { min?: Record<string, number>; rec?: Record<string, number> }; compatibility: Compatibility | null;
 }

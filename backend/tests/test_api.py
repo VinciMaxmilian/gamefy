@@ -106,3 +106,29 @@ async def test_stated_duration_is_a_hard_constraint(client, db_ready):
     await create_user(client)
     r = (await client.get("/api/search/smart", params={"q": "an rpg with a good story, under 20 hours"})).json()
     assert r["items"] and all((i["game"]["avg_duration_hours"] or 0) <= 30 for i in r["items"])
+
+
+async def test_store_offers_dedupe_and_allowlist(client, db_ready):
+    from sqlalchemy import text
+    from app.db import get_engine
+    async with get_engine().begin() as conn:
+        gid = (await conn.execute(text("select id from games where slug='skyrim'"))).scalar_one()
+        await conn.execute(text("delete from store_links where game_id=:g"), {"g": gid})
+        for store, source, url, price in [
+            ("steam", "igdb", "https://store.steampowered.com/app/489830/", None),
+            ("steam", "steam", "https://store.steampowered.com/app/489830/", 3999),
+            ("steam", "cheapshark", "https://www.cheapshark.com/redirect?dealID=AAAAAAAAAA1", 1999),
+            ("gog", "cheapshark", "https://www.cheapshark.com/redirect?dealID=BBBBBBBBBB1", 2499),
+        ]:
+            await conn.execute(text("insert into store_links(game_id,store,source,url,price_cents,normal_price_cents) values(:g,:s,:o,:u,:p,3999)"),
+                               {"g": gid, "s": store, "o": source, "u": url, "p": price})
+        # a poisoned row that somehow bypassed ingestion must still never be served
+        await conn.execute(text("insert into store_links(game_id,store,source,url) values(:g,'epic','igdb','https://evil.example/phish')"), {"g": gid})
+    stores = (await client.get("/api/games/skyrim")).json()["stores"]
+    assert [s["store"] for s in stores] == ["steam", "gog"]
+    steam = stores[0]
+    assert steam["price_cents"] == 1999 and steam["discount_percent"] == 50
+    assert steam["url"] == "https://store.steampowered.com/app/489830/"            # direct link preferred over redirect
+    assert not any("evil" in s["url"] for s in stores)
+    async with get_engine().begin() as conn:
+        await conn.execute(text("delete from store_links where game_id=:g"), {"g": gid})

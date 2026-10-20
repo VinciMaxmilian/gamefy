@@ -47,6 +47,7 @@ async def game_detail(slug: Slug, session: AsyncSession = Depends(get_session),
     if not g:
         raise HTTPException(404, "Game not found")
     detail = catalog.to_detail(g).model_dump(mode="json")
+    detail["stores"] = await catalog.store_offers(session, g.id)
     detail["compatibility"] = None
     if principal and (hw := await recommend.load_hardware(session, principal.user_id)):
         c = check_compat(hw, g.req)
