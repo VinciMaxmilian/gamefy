@@ -4,6 +4,7 @@
     python -m scripts.sync steam  --limit 150 [--stale-days 7]                  # requirements, summary, Steam price
     python -m scripts.sync prices --limit 150                                   # CheapShark cross-store prices
     python -m scripts.sync steam-changed --since-hours 48                       # refresh only apps Steam says changed
+    python -m scripts.sync embed                                                # build embeddings (needs GEMINI_API_KEY)
     python -m scripts.sync igdb-check                                           # verify IGDB credentials (no DB writes)
     python -m scripts.sync purge-seed                                           # drop the demo catalog
 
@@ -27,6 +28,15 @@ from app.ingest.cheapshark import CheapShark  # noqa: E402
 from app.ingest.embed import refresh_embeddings  # noqa: E402
 from app.ingest.steam import Steam, to_enrichment  # noqa: E402
 from app.models import Game, StoreLink  # noqa: E402
+
+
+def _embeddings_ok(allow_local: bool) -> bool:
+    """Never write low-quality offline embeddings by accident: they would be incompatible with Gemini query embeddings."""
+    from app.ai.provider import get_provider
+    if get_provider().name != "local-hash" or allow_local:
+        return True
+    print("NOTE: GEMINI_API_KEY is not set -> skipping embeddings (use --allow-local-embeddings for dev, or run `sync embed` later).")
+    return False
 
 
 async def cmd_igdb(a) -> None:
@@ -53,10 +63,24 @@ async def cmd_igdb(a) -> None:
                         print(f"! {mapped['game']['slug']}: {type(exc).__name__}: {str(exc).splitlines()[0][:120]}")
                 await session.commit()
                 print(f"page {page + 1}: {n} imported, {skipped} skipped")
-            done, tokens, cost = await refresh_embeddings(session)
-            print(f"done: {n} games, {links} store links, {done} embeddings (~{tokens} tokens, ${cost / 1e6:.4f})")
+            if a.skip_embeddings or not _embeddings_ok(a.allow_local_embeddings):
+                print(f"done: {n} games, {links} store links; embeddings skipped (run `sync embed` once GEMINI_API_KEY is set)")
+            else:
+                done, tokens, cost = await refresh_embeddings(session)
+                print(f"done: {n} games, {links} store links, {done} embeddings (~{tokens} tokens, ${cost / 1e6:.4f})")
     finally:
         await client.aclose()
+
+
+async def cmd_embed(a) -> None:
+    """(Re)build embeddings for games whose document or provider changed. Needs GEMINI_API_KEY for real semantic quality."""
+    from app.ai.provider import get_provider
+    provider = get_provider()
+    if not _embeddings_ok(a.allow_local_embeddings):
+        raise SystemExit(1)
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+        done, tokens, cost = await refresh_embeddings(session)
+        print(f"embedded {done} games with provider={provider.name}, ~{tokens} tokens, est. cost ${cost / 1e6:.4f}")
 
 
 async def cmd_igdb_check(_a) -> None:
@@ -174,11 +198,12 @@ async def cmd_purge_seed(_a) -> None:
 def main() -> None:
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("igdb"); s.add_argument("--pages", type=int, default=3); s.add_argument("--page-size", type=int, default=100); s.add_argument("--min-ratings", type=int, default=100); s.set_defaults(fn=cmd_igdb)
+    s = sub.add_parser("igdb"); s.add_argument("--pages", type=int, default=3); s.add_argument("--page-size", type=int, default=100); s.add_argument("--min-ratings", type=int, default=100); s.add_argument("--skip-embeddings", action="store_true"); s.add_argument("--allow-local-embeddings", action="store_true"); s.set_defaults(fn=cmd_igdb)
     s = sub.add_parser("steam"); s.add_argument("--limit", type=int, default=150); s.set_defaults(fn=cmd_steam)
     s = sub.add_parser("steam-changed"); s.add_argument("--since-hours", type=int, default=48); s.add_argument("--limit", type=int, default=300); s.set_defaults(fn=cmd_steam_changed)
     s = sub.add_parser("prices"); s.add_argument("--limit", type=int, default=150); s.set_defaults(fn=cmd_prices)
     sub.add_parser("purge-seed").set_defaults(fn=cmd_purge_seed)
+    s = sub.add_parser("embed"); s.add_argument("--allow-local-embeddings", action="store_true"); s.set_defaults(fn=cmd_embed)
     sub.add_parser("igdb-check").set_defaults(fn=cmd_igdb_check)
     a = p.parse_args()
     asyncio.run(a.fn(a))

@@ -1,17 +1,17 @@
 name: Catalog sync
 # Runs offline (not on Vercel: serverless time limits are too short for rate-limited APIs).
-# Add repository secrets: DATABASE_URL (Supabase transaction pooler), IGDB_CLIENT_ID, IGDB_CLIENT_SECRET,
-# GEMINI_API_KEY (optional), STEAM_WEB_API_KEY (optional).
+# Repository secrets required: DATABASE_URL (Supabase *transaction pooler*, port 6543), IGDB_CLIENT_ID, IGDB_CLIENT_SECRET.
+# Optional: GEMINI_API_KEY (embeddings), STEAM_WEB_API_KEY (changed-since discovery). See docs/ENVIRONMENT.md.
 on:
   workflow_dispatch:
     inputs:
       job:
-        description: "Which job"
+        description: "What to run (use 'bootstrap' for the first load)"
         type: choice
-        options: [igdb, steam, prices, steam-changed]
-        default: igdb
+        options: [bootstrap, igdb, steam, prices, steam-changed, embed, igdb-check]
+        default: bootstrap
   schedule:
-    - cron: "17 4 * * *"      # daily: prices + changed Steam apps
+    - cron: "17 4 * * *"      # daily: refresh Steam data and cross-store prices
 
 permissions:
   contents: read
@@ -23,7 +23,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     defaults:
       run:
         working-directory: backend
@@ -41,11 +41,32 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
-      - name: Manual job
-        if: github.event_name == 'workflow_dispatch'
-        run: python -m scripts.sync ${{ inputs.job }}
-      - name: Daily refresh
-        if: github.event_name == 'schedule'
+
+      - name: Check required secrets
         run: |
-          python -m scripts.sync steam-changed --since-hours 30
-          python -m scripts.sync prices --limit 150
+          for v in DATABASE_URL IGDB_CLIENT_ID IGDB_CLIENT_SECRET; do
+            [ -n "${!v}" ] || { echo "::error::Missing repository secret $v"; exit 1; }
+          done
+          [ -n "$GEMINI_API_KEY" ] || echo "::notice::GEMINI_API_KEY not set: embeddings will be skipped"
+
+      - name: Verify IGDB credentials
+        run: python -m scripts.sync igdb-check
+
+      - name: Run job
+        env:
+          JOB: ${{ github.event_name == 'schedule' && 'daily' || inputs.job }}
+        run: |
+          set -e
+          case "$JOB" in
+            bootstrap)
+              python -m scripts.sync igdb --pages 3
+              python -m scripts.sync steam --limit 150
+              python -m scripts.sync prices --limit 150 || echo "::warning::CheapShark step failed (prices skipped)"
+              if [ -n "$GEMINI_API_KEY" ]; then python -m scripts.sync embed; fi ;;
+            daily)
+              if [ -n "$STEAM_WEB_API_KEY" ]; then python -m scripts.sync steam-changed --since-hours 30; else python -m scripts.sync steam --limit 150; fi
+              python -m scripts.sync prices --limit 150 || echo "::warning::CheapShark step failed (prices skipped)" ;;
+            igdb-check) ;;
+            embed) python -m scripts.sync embed ;;
+            *) python -m scripts.sync "$JOB" ;;
+          esac

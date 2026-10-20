@@ -63,7 +63,11 @@ Copie `backend/.env.example`; com `ENVIRONMENT=development`, `COOKIE_SECURE=fals
    python -m scripts.sync igdb-check
    ```
    Saída esperada: `OK: token obtained …` e 3 jogos mapeados (gêneros, plataformas, `steam_appid`, lojas).
-6. Importe: `python -m scripts.sync igdb --pages 3`.
+6. Importe. Se o seu computador não alcança a porta 6543 do Supabase (redes corporativas, alguns sandboxes), use o GitHub Actions:
+   cadastre os *secrets* `DATABASE_URL`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET` (+ `GEMINI_API_KEY` se tiver), vá em **Actions → Catalog sync →
+   Run workflow → `bootstrap`**. Localmente: `python -m scripts.sync igdb --pages 3`.
+   Sem `GEMINI_API_KEY` os embeddings são **pulados de propósito** (os do embedder offline seriam incompatíveis com a busca do Gemini);
+   rode `python -m scripts.sync embed` depois que tiver a chave.
 
 Fatos da documentação: o token vem de `POST https://id.twitch.tv/oauth2/token` (`grant_type=client_credentials`) e dura semanas;
 as chamadas vão para `https://api.igdb.com/v4/<endpoint>` com os cabeçalhos `Client-ID` e `Authorization: Bearer …`;
