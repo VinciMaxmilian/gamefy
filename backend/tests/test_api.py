@@ -100,3 +100,9 @@ async def test_usage_is_tracked_per_user(client, db_ready):
     await client.get("/api/search/smart", params={"q": "short story game"})
     u = (await client.get("/api/me/usage")).json()
     assert u["calls"] == 2 and u["cache_hits"] == 1
+
+
+async def test_stated_duration_is_a_hard_constraint(client, db_ready):
+    await create_user(client)
+    r = (await client.get("/api/search/smart", params={"q": "an rpg with a good story, under 20 hours"})).json()
+    assert r["items"] and all((i["game"]["avg_duration_hours"] or 0) <= 30 for i in r["items"])

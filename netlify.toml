@@ -1,0 +1,37 @@
+[build]
+  base    = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Same-origin API: the browser only talks to the Netlify domain, so auth cookies are
+# first-party (HttpOnly, SameSite=Lax) and CORS is not needed in production.
+# >>> Replace the host with your Vercel backend URL.
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://YOUR-BACKEND.vercel.app/api/:splat"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

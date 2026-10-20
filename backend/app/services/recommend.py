@@ -187,7 +187,9 @@ async def smart_search(session: AsyncSession, user_id: uuid.UUID, query_vec: lis
             for i in range(len(vec)):
                 vec[i] = 0.5 * vec[i] + 0.5 * sum(float(e[i]) for e in embs) / len(embs)
     it = parsed.intent
-    hard = Filters(platforms=sorted(it.platforms), max_price_cents=it.max_price_cents)   # stated by the user => hard
+    # Constraints the user stated explicitly are hard filters (duration gets 50% slack: "about 30h").
+    hard = Filters(platforms=sorted(it.platforms), max_price_cents=it.max_price_cents,
+                   max_hours=it.max_duration_hours * 1.5 if it.max_duration_hours else None)
     pairs = await vector_candidates(session, vec, hard, exclude | {g.id for g in seed_games})
     sims = _normalise_similarity(pairs)
     cands = [_to_candidate(g, sims[g.id], hw) for g, _ in pairs]
