@@ -1,7 +1,11 @@
+import asyncio
+import hashlib
+import json
 import uuid
 from dataclasses import dataclass
 from functools import lru_cache
 
+import httpx
 import jwt
 from fastapi import Depends, HTTPException, Request, Response
 from jwt import PyJWKClient
@@ -12,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
 from ..db import get_session
+from ..kv import get_kv
 from ..models import Profile
 from .ratelimit import hash_value, hit
 
@@ -55,6 +60,44 @@ def verify_access_token(token: str) -> dict:
     )
 
 
+async def _fetch_gotrue_user(token: str) -> dict | None:
+    s = get_settings()
+    try:
+        async with httpx.AsyncClient(timeout=6) as client:
+            r = await client.get(f"{s.supabase_url}/auth/v1/user",
+                                 headers={"apikey": s.supabase_publishable_key, "Authorization": f"Bearer {token}"})
+    except httpx.HTTPError:
+        return None
+    return r.json() if r.status_code == 200 else None
+
+
+async def verify_token(token: str) -> dict:
+    """Async verification used by the app. Local verification when we can (HS256 secret or JWKS);
+    otherwise — HS256 project without SUPABASE_JWT_SECRET — ask Supabase Auth itself, with a short
+    cache (positive 60s, negative 30s) so bad tokens cannot turn into unbounded outbound calls.
+    Raises jwt.PyJWTError when the token is not acceptable."""
+    s = get_settings()
+    try:
+        alg = jwt.get_unverified_header(token).get("alg")
+    except jwt.PyJWTError:
+        raise
+    if not (alg == "HS256" and not s.supabase_jwt_secret and s.supabase_url):
+        return await asyncio.to_thread(verify_access_token, token)   # JWKS fetch is blocking I/O
+    kv = get_kv()
+    key = "jwtv:" + hashlib.sha256(token.encode()).hexdigest()
+    if (cached := await kv.get(key)) is not None:
+        if cached == "0":
+            raise jwt.InvalidTokenError("rejected")
+        return json.loads(cached)
+    user = await _fetch_gotrue_user(token)
+    if not user or not user.get("id"):
+        await kv.set(key, "0", 30)
+        raise jwt.InvalidTokenError("rejected by auth provider")
+    claims = {"sub": user["id"], "email": user.get("email"), "aud": "authenticated"}
+    await kv.set(key, json.dumps(claims), 60)
+    return claims
+
+
 def set_auth_cookies(response: Response, access: str, refresh: str | None, expires_in: int) -> None:
     s = get_settings()
     common = dict(httponly=True, secure=s.cookie_secure, samesite="lax")
@@ -73,7 +116,7 @@ async def _load_principal(request: Request, session: AsyncSession) -> Principal 
     if not token:
         return None
     try:
-        claims = verify_access_token(token)
+        claims = await verify_token(token)
         user_id = uuid.UUID(claims["sub"])
     except (jwt.PyJWTError, ValueError, KeyError):
         return None

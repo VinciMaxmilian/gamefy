@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -78,22 +78,63 @@ export function Recover() {
   );
 }
 
-/** Supabase redirects here with #access_token=…&type=recovery. The token never leaves this page except to our API. */
+/** Supabase redirects here with #access_token=…&type=recovery (or #error=…&error_code=otp_expired).
+ *  The token is read once into memory and removed from the address bar right away, so it never
+ *  lingers in history or screenshots; it only travels to our API when the form is submitted. */
+function readRecoveryHash() {
+  const h = new URLSearchParams(window.location.hash.slice(1));
+  const token = h.get("type") === "recovery" || !h.get("type") ? (h.get("access_token") ?? "") : "";
+  const code = h.get("error_code") ?? h.get("error") ?? "";
+  return { token, expired: code === "otp_expired", failed: !!code };
+}
+
 export function ResetPassword() {
+  const [{ token, expired, failed }] = useState(readRecoveryHash);
+  useEffect(() => { if (window.location.hash) history.replaceState(null, "", window.location.pathname); }, []);
   const [password, setPassword] = useState("");
-  const token = new URLSearchParams(window.location.hash.slice(1)).get("access_token") ?? "";
-  const nav = useNavigate();
-  const m = useMutation({
-    mutationFn: () => api("/auth/reset-password", { method: "POST", body: { password, access_token: token } }),
-    onSuccess: () => { history.replaceState(null, "", "/reset-password"); nav("/login"); },
-  });
-  if (!token) return <Shell title="Link expired" footer={<Link to="/recover" className="text-accent">Request a new link</Link>}><p className="text-center text-fg-2">This recovery link is invalid or has expired.</p></Shell>;
+  const [confirm, setConfirm] = useState("");
+  const [show, setShow] = useState(false);
+  const mismatch = confirm.length > 0 && confirm !== password;
+  const m = useMutation({ mutationFn: () => api("/auth/reset-password", { method: "POST", body: { password, access_token: token } }) });
+
+  if (m.isSuccess)
+    return (
+      <Shell title="Password updated" subtitle="You can now log in with your new password.">
+        <Button asChild size="lg" className="w-full"><Link to="/login">Log in</Link></Button>
+      </Shell>
+    );
+  if (!token)
+    return (
+      <Shell title={expired ? "This link has expired" : "This link doesn’t work"} footer={<Link to="/login" className="text-accent">Back to log in</Link>}>
+        <p className="text-center text-fg-2">
+          {expired || failed ? "Recovery links work once and expire quickly. " : "Open the link from your email on this device. "}
+          Request a new one and use it right away.
+        </p>
+        <Button asChild size="lg" className="mt-6 w-full"><Link to="/recover">Request a new link</Link></Button>
+      </Shell>
+    );
   return (
-    <Shell title="Choose a new password">
-      <form onSubmit={(e) => { e.preventDefault(); m.mutate(); }} className="space-y-4">
-        <div><Label htmlFor="pw">New password</Label><Input id="pw" type="password" autoComplete="new-password" minLength={10} required value={password} onChange={(e) => setPassword(e.target.value)} /></div>
+    <Shell title="Choose a new password" subtitle="Use at least 10 characters. A few random words work well.">
+      <form onSubmit={(e) => { e.preventDefault(); if (!mismatch) m.mutate(); }} className="space-y-4">
+        <div>
+          <Label htmlFor="pw">New password</Label>
+          <div className="relative">
+            <Input id="pw" type={show ? "text" : "password"} autoComplete="new-password" minLength={10} maxLength={128} required autoFocus
+              value={password} onChange={(e) => setPassword(e.target.value)} className="pr-16" />
+            <button type="button" onClick={() => setShow((v) => !v)} aria-pressed={show}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-fg-2 hover:text-fg">{show ? "Hide" : "Show"}</button>
+          </div>
+        </div>
+        <div>
+          <Label htmlFor="pw2">Confirm password</Label>
+          <Input id="pw2" type={show ? "text" : "password"} autoComplete="new-password" required value={confirm}
+            onChange={(e) => setConfirm(e.target.value)} aria-invalid={mismatch} />
+          {mismatch && <p role="alert" className="mt-1.5 text-sm text-negative">Passwords don’t match.</p>}
+        </div>
         <Err msg={m.isError ? errorMessage(m.error) : undefined} />
-        <Button type="submit" size="lg" className="w-full" disabled={m.isPending}>Update password</Button>
+        <Button type="submit" size="lg" className="w-full" disabled={m.isPending || mismatch || password.length < 10}>
+          {m.isPending ? "Updating…" : "Update password"}
+        </Button>
       </form>
     </Shell>
   );

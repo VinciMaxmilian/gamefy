@@ -66,6 +66,8 @@ cd frontend && npm i && npm run dev   # :5173
 
 ## Deploy
 
+All environment variables, per platform, are listed in [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md).
+
 1. **Supabase** — run `supabase/migrations/0001_init.sql` then `0002_store_links.sql` in the SQL editor (or `supabase db push`).
    Auth → URL Configuration: set *Site URL* to your Netlify URL and add `https://<site>/reset-password` to *Redirect URLs*.
    Enable email confirmation if you want it (the API works either way).

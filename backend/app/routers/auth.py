@@ -10,7 +10,7 @@ from ..schemas import Credentials, EmailOnly, ResetPassword
 from ..security.audit import audit
 from ..security.auth import (
     ACCESS_COOKIE, CSRF_COOKIE, REFRESH_COOKIE, Principal, clear_auth_cookies, optional_user, set_auth_cookies,
-    verify_access_token,
+    verify_token,
 )
 from ..security.middleware import new_csrf_token
 from ..security.passwords import validate_password
@@ -128,7 +128,7 @@ async def recover(body: EmailOnly, request: Request, session: AsyncSession = Dep
 async def reset_password(body: ResetPassword, request: Request, session: AsyncSession = Depends(get_session)) -> dict:
     await hit("reset_ip", hash_value(client_ip(request)), 10, 3600)
     try:
-        claims = verify_access_token(body.access_token)       # the recovery token must be a valid Supabase token
+        claims = await verify_token(body.access_token)       # the recovery token must be a valid Supabase token
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(400, "Invalid or expired recovery link") from exc
     if problems := validate_password(body.password, claims.get("email", "")):

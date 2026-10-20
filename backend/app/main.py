@@ -53,6 +53,16 @@ async def health() -> dict:
     return {"ok": True}
 
 
+@app.get("/api/health/ip")
+async def ip_probe(request: Request) -> dict:
+    """Diagnostic: which header the rate limiter trusts for the client IP, and a hash of the value.
+    Compare the hash from two vantage points (direct vs via the Netlify proxy) to verify the real
+    client IP survives the proxy. Never returns the raw IP."""
+    from .security.ratelimit import client_ip_source, hash_value
+    ip, source = client_ip_source(request)
+    return {"source": source, "ip_hash": hash_value(ip)}
+
+
 @app.get("/api/health/ready")
 async def ready() -> JSONResponse:
     """Readiness probe: can we reach the database? Boolean only — no error details are exposed

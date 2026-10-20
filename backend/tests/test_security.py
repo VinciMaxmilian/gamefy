@@ -126,3 +126,30 @@ async def test_login_brute_force_limited(client):
 async def test_ready_probe_reports_db_without_leaking_details(client, db_ready):
     r = await client.get("/api/health/ready")
     assert r.status_code == 200 and r.json() == {"ok": True, "db": True}
+
+
+async def test_hs256_without_secret_falls_back_to_auth_provider(monkeypatch):
+    from app.security import auth as auth_mod
+    monkeypatch.setattr(auth_mod.get_settings(), "supabase_jwt_secret", "")
+    calls = []
+
+    async def fake_user(token):
+        calls.append(token)
+        return {"id": "11111111-1111-1111-1111-111111111111", "email": "a@example.com"} if token.endswith("good") else None
+    monkeypatch.setattr(auth_mod, "_fetch_gotrue_user", fake_user)
+    good = make_token()[0][:-4] + "good"          # structurally a JWT; provider decides
+    claims = await auth_mod.verify_token(good)
+    assert claims["sub"].startswith("1111") and claims["email"] == "a@example.com"
+    await auth_mod.verify_token(good)             # cached
+    assert len(calls) == 1
+    bad = make_token()[0]
+    for _ in range(2):
+        with pytest.raises(jwt.PyJWTError):
+            await auth_mod.verify_token(bad)
+    assert len(calls) == 2                        # rejection is cached too
+
+
+async def test_ip_probe_never_returns_raw_ip(client):
+    r = await client.get("/api/health/ip", headers={"x-nf-client-connection-ip": "203.0.113.9"})
+    d = r.json()
+    assert d["source"] == "x-nf-client-connection-ip" and "203.0.113.9" not in r.text and len(d["ip_hash"]) == 24

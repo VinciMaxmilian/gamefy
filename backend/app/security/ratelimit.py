@@ -7,16 +7,19 @@ from ..config import get_settings
 from ..kv import get_kv
 
 
-def client_ip(request: Request) -> str:
+def client_ip_source(request: Request) -> tuple[str, str]:
+    """(ip, which header it came from). Behind Netlify -> Vercel the proxy hop hides the real client
+    unless the proxy forwards it; TRUSTED_IP_HEADER names the header to believe."""
     s = get_settings()
-    for header in (s.trusted_ip_header, "x-real-ip"):
+    for header in (s.trusted_ip_header, "x-real-ip", "x-forwarded-for"):
         v = request.headers.get(header)
         if v:
-            return v.split(",")[0].strip()[:64]
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()[:64]
-    return request.client.host if request.client else "unknown"
+            return v.split(",")[0].strip()[:64], header
+    return (request.client.host if request.client else "unknown"), "peer"
+
+
+def client_ip(request: Request) -> str:
+    return client_ip_source(request)[0]
 
 
 def hash_value(value: str) -> str:
