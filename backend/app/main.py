@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from .config import get_settings
 from .routers import auth, games, me, reco
-from .security.middleware import SecurityMiddleware, configure_logging
+from .security.middleware import SECURITY_HEADERS, SecurityMiddleware, configure_logging
 from .security.ratelimit import ip_limiter
 
 configure_logging()
@@ -43,9 +43,13 @@ async def validation_handler(_: Request, exc: RequestValidationError) -> JSONRes
 
 
 @app.exception_handler(Exception)
-async def unhandled(_: Request, exc: Exception) -> JSONResponse:
-    log.exception("unhandled_error", extra={"error": type(exc).__name__})
-    return JSONResponse({"detail": "Internal error"}, status_code=500)   # no stack traces to clients
+async def unhandled(request: Request, exc: Exception) -> JSONResponse:
+    rid = getattr(request.state, "request_id", None)
+    log.exception("unhandled_error", extra={"error": type(exc).__name__, "request_id": rid, "path": request.url.path})
+    # No stack traces to clients; the request id lets you find the traceback in the server logs.
+    # This response is produced outside SecurityMiddleware, so apply the same headers here.
+    return JSONResponse({"detail": "Internal error", "request_id": rid}, status_code=500,
+                        headers={**SECURITY_HEADERS, "X-Request-ID": rid or ""})
 
 
 @app.get("/api/health")
@@ -63,6 +67,10 @@ async def ip_probe(request: Request) -> dict:
     return {"source": source, "ip_hash": hash_value(ip)}
 
 
+REQUIRED_TABLES = {"profiles", "games", "game_embeddings", "wishlist", "library", "ratings", "user_events",
+                   "preference_profiles", "hardware_profiles", "usage_log", "audit_log", "store_links"}
+
+
 @app.get("/api/health/ready")
 async def ready() -> JSONResponse:
     """Readiness probe: can we reach the database? Boolean only — no error details are exposed
@@ -72,7 +80,9 @@ async def ready() -> JSONResponse:
     try:
         async with get_engine().connect() as conn:
             await conn.execute(text("select 1 from games limit 1"))
-        return JSONResponse({"ok": True, "db": True})
+            present = {r[0] for r in await conn.execute(text("select table_name from information_schema.tables where table_schema = 'public'"))}
+        missing = sorted(REQUIRED_TABLES - present)
+        return JSONResponse({"ok": not missing, "db": True, "missing_tables": missing}, status_code=200 if not missing else 503)
     except Exception as exc:  # noqa: BLE001
         log.error("ready_check_failed", extra={"error": type(exc).__name__})
         return JSONResponse({"ok": False, "db": False}, status_code=503)

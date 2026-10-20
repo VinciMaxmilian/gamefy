@@ -31,6 +31,8 @@ class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(record.created)),
                    "level": record.levelname, "logger": record.name, "msg": record.getMessage()}
+        if record.exc_info:
+            payload["exc"] = self.formatException(record.exc_info)[-3000:]
         for k, v in record.__dict__.items():
             if k not in logging.LogRecord("", 0, "", 0, "", (), None).__dict__ and k not in payload and k != "message":
                 payload[k] = v
@@ -66,6 +68,7 @@ class SecurityMiddleware:
         headers = {k.decode().lower(): v.decode("latin-1") for k, v in scope["headers"]}
         method = scope["method"]
         status_holder = {"status": 500}
+        scope.setdefault("state", {})["request_id"] = request_id
 
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":

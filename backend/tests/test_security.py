@@ -125,7 +125,7 @@ async def test_login_brute_force_limited(client):
 
 async def test_ready_probe_reports_db_without_leaking_details(client, db_ready):
     r = await client.get("/api/health/ready")
-    assert r.status_code == 200 and r.json() == {"ok": True, "db": True}
+    assert r.status_code == 200 and r.json() == {"ok": True, "db": True, "missing_tables": []}
 
 
 async def test_hs256_without_secret_falls_back_to_auth_provider(monkeypatch):
@@ -204,3 +204,18 @@ async def test_confirm_email_signs_in_with_cookies(client, monkeypatch):
     assert ok.json() == {"ok": True} and "t" * 30 not in ok.text            # tokens never reach JS
     assert (await client.post("/api/auth/confirm-email", json={"token_hash": "wronghash1234"})).status_code == 400
     assert (await client.post("/api/auth/confirm-email", json={"token_hash": "bad hash!"})).status_code == 422
+
+
+async def test_unhandled_error_returns_request_id_not_traceback(monkeypatch):
+    from httpx import ASGITransport, AsyncClient
+    from app.main import app
+    from app.routers import games as games_router
+
+    async def boom(*a, **k):
+        raise RuntimeError("secret internal detail")
+    monkeypatch.setattr(games_router.catalog, "search_games", boom)
+    async with AsyncClient(transport=ASGITransport(app=app, raise_app_exceptions=False), base_url="http://test") as c:
+        r = await c.get("/api/games")
+    assert r.status_code == 500 and r.json()["detail"] == "Internal error"
+    assert r.json()["request_id"] == r.headers["x-request-id"] and "secret" not in r.text
+    assert r.headers["x-content-type-options"] == "nosniff"
