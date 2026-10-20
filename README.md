@@ -20,14 +20,17 @@ Browser ──► Netlify (React SPA)  ──/api/*  proxy──►  Vercel (Fas
 |---|---|
 | Auth (signup/login/logout/refresh/recover/reset), HttpOnly cookies, CSRF, brute-force limits | ✅ |
 | Catalog, FTS search, filters, sorting, game page, similar games (pgvector) | ✅ |
-| Wishlist, library (status/playtime), ratings/reviews, profile | ✅ |
+| Wishlist, library (status + hours, editable), ratings and written reviews (anonymous, sanitised), profile | ✅ |
+| "Not interested" on recommendations and explicit genre likes/dislikes feed the taste profile | ✅ |
+| Admin dashboard (`/admin`): cost per user, cache hit rate, tokens, security/audit events | ✅ |
+| CI (GitHub Actions): backend tests on Postgres+pgvector, frontend typecheck + build | ✅ |
 | **Level 1** taste profile from behaviour (+ explicit prefs), time-decayed | ✅ |
 | **Level 2** semantic search (`/search/smart`): rule-based intent parser (PT/EN) + embeddings | ✅ |
 | Configurable ranking (`Score = Σ wᵢ·componentᵢ`) with explainable reasons | ✅ |
 | Hardware compatibility (deterministic tiers) | ✅ |
 | Real catalog sync + "where to buy" store links and per-store prices | ✅ |
 | Plans (visitor/free/premium/admin), per-plan quotas, rate limiting, cost telemetry | ✅ |
-| Chat / comparison / curation by LLM (Premium) | ⏳ next phase (see `docs/AI_SECURITY.md`) |
+| Chat / comparison / curation by LLM (Premium) | ⏳ deliberately later (see `docs/AI_SECURITY.md`) |
 | Payments | ⏳ plan is set server-side in `profiles.plan` (no client path to change it) |
 
 ## Repo layout
@@ -58,7 +61,7 @@ cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r req
 cp .env.example .env            # fill in; never commit
 python -m scripts.seed          # sample games + embeddings (uses GEMINI_API_KEY if set, else offline embedder)
 uvicorn app.main:app --reload   # :8000
-pytest                          # 59 tests (security, reco, API integration)
+pytest                          # 72 tests (security, reco, ingestion, API integration)
 
 # 3. Frontend (Vite proxies /api → :8000, so cookies are same-origin like in production)
 cd frontend && npm i && npm run dev   # :5173
@@ -121,6 +124,17 @@ output); adult-themed IGDB entries are skipped. The web request path never calls
 * Untrusted text (reviews, descriptions, tags, queries) is sanitised, scanned for injection patterns and — when an LLM is added — only ever inserted as delimited, flagged **data** (`security/sanitize.py:wrap_untrusted`).
 
 Full AI threat model and the planned tool-calling design: [`docs/AI_SECURITY.md`](docs/AI_SECURITY.md).
+
+## Operations
+
+* **Region:** the backend function is pinned to `gru1` (São Paulo, `backend/vercel.json`) next to a `sa-east-1` Supabase project. If your database
+  is elsewhere, change `regions` — distance to the database dominates latency.
+* **Caching:** public catalog endpoints (`/games`, `/games/facets`, `/games/{slug}/similar`, reviews) send `s-maxage` so the CDN absorbs repeat traffic;
+  everything personal is `no-store`.
+* **Admin:** give yourself the role in SQL (`update profiles set role='admin' …`, see `supabase/setup.sql`), then open `/admin`.
+* **Errors:** a 500 returns a `request_id`; search for it in the Vercel logs to find the traceback. `GET /api/health/ready` reports database
+  reachability and missing tables.
+* **Pooler:** Supabase's transaction pooler breaks prepared statements; the engine disables them (`app/db.py`). Don't re-enable.
 
 ## Cost control
 
