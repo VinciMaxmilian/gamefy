@@ -121,3 +121,8 @@ async def test_login_brute_force_limited(client):
     finally:
         auth_router._gotrue = orig
     assert codes[0] == 401 and codes[-1] == 429
+
+
+async def test_ready_probe_reports_db_without_leaking_details(client, db_ready):
+    r = await client.get("/api/health/ready")
+    assert r.status_code == 200 and r.json() == {"ok": True, "db": True}

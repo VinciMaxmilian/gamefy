@@ -53,5 +53,20 @@ async def health() -> dict:
     return {"ok": True}
 
 
+@app.get("/api/health/ready")
+async def ready() -> JSONResponse:
+    """Readiness probe: can we reach the database? Boolean only — no error details are exposed
+    (the cause is in the server logs under 'ready_check_failed')."""
+    from sqlalchemy import text
+    from .db import get_engine
+    try:
+        async with get_engine().connect() as conn:
+            await conn.execute(text("select 1 from games limit 1"))
+        return JSONResponse({"ok": True, "db": True})
+    except Exception as exc:  # noqa: BLE001
+        log.error("ready_check_failed", extra={"error": type(exc).__name__})
+        return JSONResponse({"ok": False, "db": False}, status_code=503)
+
+
 for r in (auth.router, games.router, me.router, reco.router):
     app.include_router(r, prefix="/api")
