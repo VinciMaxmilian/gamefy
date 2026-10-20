@@ -58,15 +58,19 @@ Copie `backend/.env.example`; com `ENVIRONMENT=development`, `COOKIE_SECURE=fals
 * **Authentication → Emails → Templates → Reset Password**: o link padrão (`{{ .ConfirmationURL }}`) funciona; ele chega em `/reset-password#access_token=…`.
 * **SQL Editor**: rode `supabase/setup.sql` uma vez.
 
-## Verificar o IP do cliente (rate limit atrás do Netlify)
+## IP do cliente atrás do Netlify (verificado)
 
-Netlify → Vercel é um proxy: se o IP real do visitante não chegar ao backend, **todos os usuários dividiriam o mesmo limite**. Confira depois do deploy:
+Testado em produção: pelo Netlify o backend recebe `x-nf-client-connection-ip` com o **IP real do visitante**, e o Netlify
+**sobrescreve** valores forjados pelo cliente. Então o padrão (`TRUSTED_IP_HEADER=x-nf-client-connection-ip`) está certo e cada usuário
+tem seu próprio limite.
 
-```bash
-curl -s https://gamefy-backend.vercel.app/api/health/ip   # direto
-curl -s https://gamefyapp.netlify.app/api/health/ip       # pelo Netlify
-```
-Rodando os dois da mesma máquina, o `ip_hash` deve ser **igual**. Se for diferente, o backend está vendo o IP do Netlify: ajuste `TRUSTED_IP_HEADER` para o cabeçalho que carrega o IP real (o campo `source` mostra qual está sendo usado).
+Limitação conhecida: quem chamar a Vercel **diretamente** (`gamefy-backend.vercel.app`, sem passar pelo Netlify) consegue forjar esse
+cabeçalho e escapar dos limites **por IP**. Os limites por conta (tentativas de login por e-mail, quotas e limites por usuário
+logado) continuam valendo. Se quiser fechar isso: valide um segredo compartilhado enviado pelo proxy (ex.: Netlify Edge Function
+adicionando um cabeçalho com um segredo guardado em variável de ambiente).
+
+Para conferir: `curl -s https://gamefyapp.netlify.app/api/health/ip` deve mostrar `"source":"x-nf-client-connection-ip"`.
+(O `ip_hash` é um hash; não compare com chamadas diretas à Vercel: elas enxergam outro cabeçalho.)
 
 ## Diagnóstico rápido
 
