@@ -1,5 +1,5 @@
 import { Suspense, lazy } from "react";
-import { Link, Route, Routes, useLocation } from "react-router-dom";
+import { Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { Nav } from "./components/Nav";
 import { Button } from "./components/ui/button";
@@ -19,6 +19,19 @@ const Signup = lazy(() => AuthPages.then((m) => ({ default: m.Signup })));
 const Recover = lazy(() => AuthPages.then((m) => ({ default: m.Recover })));
 const ResetPassword = lazy(() => AuthPages.then((m) => ({ default: m.ResetPassword })));
 
+/** Supabase falls back to the Site URL (root) when a redirect URL isn't allow-listed, appending the result
+ *  in the hash. Forward recovery results to the reset page instead of leaving the user on a silent home page. */
+function RecoveryRedirect() {
+  const { pathname, hash } = useLocation();
+  const nav = useNavigate();
+  useEffect(() => {
+    if (pathname === "/reset-password" || !hash) return;
+    const h = new URLSearchParams(hash.slice(1));
+    if (h.get("type") === "recovery" || h.get("error_code") === "otp_expired") nav(`/reset-password${hash}`, { replace: true });
+  }, [pathname, hash, nav]);
+  return null;
+}
+
 function ScrollTop() {
   const { pathname } = useLocation();
   useEffect(() => { window.scrollTo({ top: 0 }); }, [pathname]);
@@ -31,6 +44,7 @@ export default function App() {
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-accent focus:px-4 focus:py-2 focus:text-white">Skip to content</a>
       <Nav />
       <ScrollTop />
+      <RecoveryRedirect />
       <main id="main" className="mx-auto min-h-screen max-w-[1280px] px-4 pb-24 pt-[calc(var(--nav-h)+2rem)] md:px-8">
         <Suspense fallback={<div className="h-96" />}>
           <Routes>

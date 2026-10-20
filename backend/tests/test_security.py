@@ -153,3 +153,37 @@ async def test_ip_probe_never_returns_raw_ip(client):
     r = await client.get("/api/health/ip", headers={"x-nf-client-connection-ip": "203.0.113.9"})
     d = r.json()
     assert d["source"] == "x-nf-client-connection-ip" and "203.0.113.9" not in r.text and len(d["ip_hash"]) == 24
+
+
+class _R:
+    def __init__(self, status, data=None):
+        self.status_code, self._d = status, data or {}
+
+    def json(self):
+        return self._d
+
+
+async def test_reset_password_token_hash_flow(client, monkeypatch):
+    from app.routers import auth as auth_router
+    calls = []
+
+    async def fake(method, path, **kw):
+        calls.append((method, path))
+        if path == "/verify":
+            return _R(200, {"access_token": "x" * 30}) if kw["json"]["token_hash"] == "goodhash12345" else _R(403)
+        return _R(200)                                           # PUT /user
+    monkeypatch.setattr(auth_router, "_gotrue", fake)
+    ok = await client.post("/api/auth/reset-password", json={"password": "correct horse battery", "token_hash": "goodhash12345"})
+    assert ok.status_code == 200 and calls == [("POST", "/verify"), ("PUT", "/user")]
+    calls.clear()
+    weak = await client.post("/api/auth/reset-password", json={"password": "password123", "token_hash": "goodhash12345"})
+    assert weak.status_code == 422 and calls == []              # weak password must NOT consume the one-time token
+    bad = await client.post("/api/auth/reset-password", json={"password": "correct horse battery", "token_hash": "wronghash1234"})
+    assert bad.status_code == 400 and calls == [("POST", "/verify")]
+
+
+async def test_reset_password_requires_exactly_one_credential(client):
+    for body in ({"password": "correct horse battery"},
+                 {"password": "correct horse battery", "token_hash": "goodhash12345", "access_token": "y" * 30},
+                 {"password": "correct horse battery", "token_hash": "bad hash!"}):
+        assert (await client.post("/api/auth/reset-password", json=body)).status_code == 422

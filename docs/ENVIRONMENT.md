@@ -53,9 +53,16 @@ Copie `backend/.env.example`; com `ENVIRONMENT=development`, `COOKIE_SECURE=fals
 * **Authentication → URL Configuration**
   * *Site URL*: `https://gamefyapp.netlify.app`
   * *Redirect URLs*: `https://gamefyapp.netlify.app/reset-password` (e `http://localhost:5173/reset-password` para testar)
-  * Sem isso o e-mail de "esqueci a senha" não leva à página certa.
+  * Se `/reset-password` não estiver na lista (ou `CORS_ORIGINS` não estiver definida na Vercel), o Supabase manda o usuário para a raiz do site. O app agora encaminha isso para a página de redefinição, mas o ideal é corrigir a configuração.
 * **Authentication → Providers → Email**: decida se exige confirmação de e-mail (a API funciona nos dois casos).
-* **Authentication → Emails → Templates → Reset Password**: o link padrão (`{{ .ConfirmationURL }}`) funciona; ele chega em `/reset-password#access_token=…`.
+* **Authentication → Emails → Templates → Reset Password** — **troque o link** (isto evita o erro `otp_expired`):
+  scanners de e-mail (Gmail/Outlook) abrem o link antes de você e queimam o token de uso único do link padrão. Com `token_hash`,
+  o token só é consumido quando você envia a nova senha na nossa página:
+  ```html
+  <h2>Reset your password</h2>
+  <p><a href="{{ .SiteURL }}/reset-password?token_hash={{ .TokenHash }}&type=recovery">Choose a new password</a></p>
+  ```
+  Isso exige o *Site URL* correto (`https://gamefyapp.netlify.app`). Com esse template, as *Redirect URLs* deixam de ser necessárias para recuperar senha.
 * **SQL Editor**: rode `supabase/setup.sql` uma vez.
 
 ## IP do cliente atrás do Netlify (verificado)

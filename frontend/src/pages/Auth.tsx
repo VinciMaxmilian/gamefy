@@ -78,24 +78,26 @@ export function Recover() {
   );
 }
 
-/** Supabase redirects here with #access_token=…&type=recovery (or #error=…&error_code=otp_expired).
- *  The token is read once into memory and removed from the address bar right away, so it never
- *  lingers in history or screenshots; it only travels to our API when the form is submitted. */
-function readRecoveryHash() {
+/** Two ways in, both read once into memory and removed from the address bar immediately:
+ *  - ?token_hash=…&type=recovery   (our e-mail template; the one-time token is only consumed when you submit)
+ *  - #access_token=…&type=recovery (Supabase default redirect), or #error=…&error_code=otp_expired */
+function readRecoveryParams() {
+  const q = new URLSearchParams(window.location.search);
   const h = new URLSearchParams(window.location.hash.slice(1));
-  const token = h.get("type") === "recovery" || !h.get("type") ? (h.get("access_token") ?? "") : "";
+  const tokenHash = q.get("type") === "recovery" ? (q.get("token_hash") ?? "") : "";
+  const accessToken = h.get("type") === "recovery" || !h.get("type") ? (h.get("access_token") ?? "") : "";
   const code = h.get("error_code") ?? h.get("error") ?? "";
-  return { token, expired: code === "otp_expired", failed: !!code };
+  return { tokenHash, accessToken, usable: !!(tokenHash || accessToken), expired: code === "otp_expired", failed: !!code };
 }
 
 export function ResetPassword() {
-  const [{ token, expired, failed }] = useState(readRecoveryHash);
-  useEffect(() => { if (window.location.hash) history.replaceState(null, "", window.location.pathname); }, []);
+  const [{ tokenHash, accessToken, usable, expired, failed }] = useState(readRecoveryParams);
+  useEffect(() => { if (window.location.hash || window.location.search) history.replaceState(null, "", window.location.pathname); }, []);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
   const mismatch = confirm.length > 0 && confirm !== password;
-  const m = useMutation({ mutationFn: () => api("/auth/reset-password", { method: "POST", body: { password, access_token: token } }) });
+  const m = useMutation({ mutationFn: () => api("/auth/reset-password", { method: "POST", body: { password, ...(tokenHash ? { token_hash: tokenHash } : { access_token: accessToken }) } }) });
 
   if (m.isSuccess)
     return (
@@ -103,7 +105,7 @@ export function ResetPassword() {
         <Button asChild size="lg" className="w-full"><Link to="/login">Log in</Link></Button>
       </Shell>
     );
-  if (!token)
+  if (!usable)
     return (
       <Shell title={expired ? "This link has expired" : "This link doesn’t work"} footer={<Link to="/login" className="text-accent">Back to log in</Link>}>
         <p className="text-center text-fg-2">

@@ -127,15 +127,27 @@ async def recover(body: EmailOnly, request: Request, session: AsyncSession = Dep
 @router.post("/reset-password")
 async def reset_password(body: ResetPassword, request: Request, session: AsyncSession = Depends(get_session)) -> dict:
     await hit("reset_ip", hash_value(client_ip(request)), 10, 3600)
-    try:
-        claims = await verify_token(body.access_token)       # the recovery token must be a valid Supabase token
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(400, "Invalid or expired recovery link") from exc
-    if problems := validate_password(body.password, claims.get("email", "")):
-        raise HTTPException(422, detail=problems)
-    r = await _gotrue("PUT", "/user", json={"password": body.password}, bearer=body.access_token)
+    invalid = HTTPException(400, "Invalid or expired recovery link")
+    if body.token_hash:
+        # Password policy FIRST: verifying consumes the one-time token, so a weak password must not burn it.
+        if problems := validate_password(body.password):
+            raise HTTPException(422, detail=problems)
+        v = await _gotrue("POST", "/verify", json={"type": "recovery", "token_hash": body.token_hash})
+        if v.status_code != 200 or "access_token" not in v.json():
+            await audit(session, request, "password_reset_rejected")
+            raise invalid
+        access = v.json()["access_token"]
+    else:
+        try:
+            claims = await verify_token(body.access_token or "")   # must be a valid Supabase token
+        except Exception as exc:  # noqa: BLE001
+            raise invalid from exc
+        if problems := validate_password(body.password, claims.get("email", "")):
+            raise HTTPException(422, detail=problems)
+        access = body.access_token
+    r = await _gotrue("PUT", "/user", json={"password": body.password}, bearer=access)
     if r.status_code != 200:
-        raise HTTPException(400, "Invalid or expired recovery link")
+        raise invalid
     await audit(session, request, "password_reset")
     return {"ok": True}
 

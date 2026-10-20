@@ -2,7 +2,7 @@ import re
 from datetime import date
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 Slug = Annotated[str, StringConstraints(pattern=r"^[a-z0-9-]{1,100}$")]
 Token = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9 +&'.-]{0,39}$", to_lower=True)]
@@ -79,8 +79,17 @@ class EmailOnly(Strict):
 
 
 class ResetPassword(Strict):
+    """Exactly one credential: `token_hash` (from our e-mail template; consumed only on submit, so mail
+    scanners that pre-open links cannot burn it) or `access_token` (legacy #access_token redirect)."""
     password: Annotated[str, StringConstraints(min_length=1, max_length=128)]
-    access_token: Annotated[str, StringConstraints(min_length=20, max_length=4096)]
+    access_token: Annotated[str, StringConstraints(min_length=20, max_length=4096)] | None = None
+    token_hash: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_\-]{8,200}$")] | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> "ResetPassword":
+        if (self.access_token is None) == (self.token_hash is None):
+            raise ValueError("Provide exactly one of access_token or token_hash")
+        return self
 
 
 # ----------------------------------------------------------------- user data
