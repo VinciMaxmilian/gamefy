@@ -43,7 +43,7 @@ const ptBR: Record<Key, string> = {
   "discover.quota_title": "Você usou as buscas inteligentes de hoje", "discover.quota_body": "Contas grátis têm algumas por dia. A busca clássica e as suas recomendações continuam disponíveis.",
   "discover.see_premium": "Conhecer o Premium", "discover.classic_short": "Busca clássica",
   "discover.unavailable": "A busca inteligente está indisponível agora", "discover.understood": "Foi isto que entendemos",
-  "discover.by_meaning": "Buscando pelo significado geral.", "discover.left": "Resta {n} busca inteligente hoje|Restam {n} buscas inteligentes hoje",
+  "discover.keyword_note": "Mostrando resultados por palavras-chave. A busca por significado ainda está sendo preparada.", "discover.by_meaning": "Buscando pelo significado geral.", "discover.left": "Resta {n} busca inteligente hoje|Restam {n} buscas inteligentes hoje",
   "discover.like": "como {title}", "discover.under": "até {price}",
 
   "game.not_found": "Jogo não encontrado", "game.back": "Voltar à loja", "game.to_play": "{hours} de jogo", "game.difficulty": "Dificuldade {n}/5",

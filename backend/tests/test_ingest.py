@@ -233,3 +233,41 @@ async def test_rest_importer_request_shapes(monkeypatch):
         assert json.loads(calls[1][2]["content"]) == [{"game_id": "uuid-1", "store": "steam", "source": "igdb", "url": "https://store.steampowered.com/app/1/", "currency": "USD"}]
     finally:
         await rest.aclose()
+
+
+async def test_rest_embedding_writer_is_incremental_and_formats_vectors(monkeypatch):
+    import httpx, json
+    from app.ai.provider import EmbedResult
+    from app.config import get_settings
+    from app.ingest import http as http_mod, rest_store as rs
+    from app.ai.semantic_doc import build_semantic_doc, doc_hash
+    s = get_settings()
+    monkeypatch.setattr(s, "supabase_url", "https://x.supabase.co"); monkeypatch.setattr(s, "supabase_secret_key", "sb_secret_test")
+    g1 = {"id": "g1", "slug": "a", "title": "Alpha", "genres": ["rpg"], "tags": ["x"], "features": [], "platforms": ["pc"], "avg_duration_hours": 10, "difficulty": 2, "summary": "s", "description": "d"}
+    g2 = {**g1, "id": "g2", "slug": "b", "title": "Beta"}
+
+    class P:
+        name = "fake"
+        async def embed(self, texts, task="document"):
+            return EmbedResult([[0.5, 0.25, -1.0] for _ in texts], 10, "fake-model", "fake", 0)
+    unchanged = doc_hash(build_semantic_doc(g1)[0], "fake")
+    posts = []
+
+    async def fake(self, method, path, **kw):
+        req = httpx.Request(method, "https://x")
+        if method == "GET" and path == "/games":
+            return httpx.Response(200, json=[g1, g2], request=req)
+        if method == "GET" and path == "/game_embeddings":
+            return httpx.Response(200, json=[{"game_id": "g1", "doc_hash": unchanged}], request=req)     # g1 already embedded
+        posts.append((path, json.loads(kw["content"]), kw["params"]))
+        return httpx.Response(201, json=[], request=req)
+    monkeypatch.setattr(http_mod.Throttled, "request", fake)
+    rest = rs.Rest()
+    try:
+        done, tokens, _ = await rs.embed_games(rest, P())
+    finally:
+        await rest.aclose()
+    assert done == 1 and tokens == 10                                                   # only the changed game is embedded
+    path, rows, params = posts[0]
+    assert path == "/game_embeddings" and params == {"on_conflict": "game_id"}
+    assert rows[0]["game_id"] == "g2" and rows[0]["embedding"] == "[0.500000,0.250000,-1.000000]" and rows[0]["model"] == "fake-model"

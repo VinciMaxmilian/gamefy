@@ -3,9 +3,10 @@ SUPABASE_URL + SUPABASE_SECRET_KEY (no direct database access).
 
     python -m scripts.sync_rest igdb  --pages 3 --page-size 100 --min-ratings 100
     python -m scripts.sync_rest steam --limit 150
+    python -m scripts.sync_rest embed              # needs GEMINI_API_KEY
     python -m scripts.sync_rest status
 
-Embeddings are not built here (they need the vector type and a Gemini key): run `scripts.sync embed` afterwards.
+Embeddings: `embed` writes them through REST too (needs GEMINI_API_KEY).
 """
 import argparse
 import asyncio
@@ -81,6 +82,21 @@ async def cmd_steam(a) -> None:
         await steam.aclose(); await rest.aclose()
 
 
+async def cmd_embed(a) -> None:
+    from app.ai.provider import get_provider
+    provider = get_provider()
+    if provider.name == "local-hash" and not a.allow_local_embeddings:
+        print("GEMINI_API_KEY is not set -> refusing to write low-quality offline embeddings (they would not match Gemini query vectors).\n"
+              "Set GEMINI_API_KEY, or pass --allow-local-embeddings if your deployment also has no Gemini key.")
+        raise SystemExit(1)
+    rest = rs.Rest()
+    try:
+        done, tokens, cost = await rs.embed_games(rest, provider)
+        print(f"done: {done} games embedded with provider={provider.name}, ~{tokens} tokens, est. cost ${cost / 1e6:.4f}")
+    finally:
+        await rest.aclose()
+
+
 async def cmd_status(_a) -> None:
     rest = rs.Rest()
     try:
@@ -96,6 +112,7 @@ def main() -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("igdb"); s.add_argument("--pages", type=int, default=3); s.add_argument("--page-size", type=int, default=100); s.add_argument("--min-ratings", type=int, default=100); s.set_defaults(fn=cmd_igdb)
     s = sub.add_parser("steam"); s.add_argument("--limit", type=int, default=150); s.set_defaults(fn=cmd_steam)
+    s = sub.add_parser("embed"); s.add_argument("--allow-local-embeddings", action="store_true"); s.set_defaults(fn=cmd_embed)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     a = p.parse_args()
     asyncio.run(a.fn(a))

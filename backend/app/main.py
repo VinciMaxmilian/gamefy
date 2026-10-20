@@ -81,8 +81,12 @@ async def ready() -> JSONResponse:
         async with get_engine().connect() as conn:
             await conn.execute(text("select 1 from games limit 1"))
             present = {r[0] for r in await conn.execute(text("select table_name from information_schema.tables where table_schema = 'public'"))}
+            n_emb = (await conn.execute(text("select count(*) from game_embeddings"))).scalar_one() if "game_embeddings" in present else 0
         missing = sorted(REQUIRED_TABLES - present)
-        return JSONResponse({"ok": not missing, "db": True, "missing_tables": missing}, status_code=200 if not missing else 503)
+        from .ai.provider import get_provider
+        # Which embedding provider this deployment uses (names only, never keys) and how many games are indexed.
+        return JSONResponse({"ok": not missing, "db": True, "missing_tables": missing,
+                             "embeddings": {"provider": get_provider().name, "count": n_emb}}, status_code=200 if not missing else 503)
     except Exception as exc:  # noqa: BLE001
         log.error("ready_check_failed", extra={"error": type(exc).__name__})
         return JSONResponse({"ok": False, "db": False}, status_code=503)

@@ -1,4 +1,6 @@
+import re
 import uuid
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
@@ -176,22 +178,63 @@ async def find_by_titles(session: AsyncSession, titles: list[str]) -> list[Game]
     return list(out.values())
 
 
-async def smart_search(session: AsyncSession, user_id: uuid.UUID, query_vec: list[float], parsed, profile: dict[str, float],
+_STOPWORDS = {"the", "and", "with", "for", "game", "games", "that", "like", "but", "not", "can", "runs", "run", "want", "play", "uma", "um", "que",
+              "com", "para", "por", "mas", "jogo", "jogos", "quero", "parecido", "mais", "menos", "meu", "minha", "uns", "nao", "não", "sem", "tipo"}
+
+
+async def fts_candidates(session: AsyncSession, text_: str, f: Filters, exclude: set[uuid.UUID], limit: int = 100) -> list[tuple[Game, float]]:
+    """Keyword fallback: OR of the query's meaningful words against the full-text index (titles, genres, tags, summaries)."""
+    words = [w for w in re.findall(r"\w{3,30}", text_.lower()) if w not in _STOPWORDS][:8]
+    if not words:
+        return []
+    tsq = func.to_tsquery("simple", " | ".join(f"{w}:*" for w in words))
+    rank_ = func.ts_rank_cd(Game.search, tsq)
+    stmt = apply_filters(select(Game, rank_.label("r")).where(Game.search.op("@@")(tsq)), f)
+    if exclude:
+        stmt = stmt.where(Game.id.notin_(exclude))
+    rows = (await session.execute(stmt.order_by(rank_.desc()).limit(limit))).all()
+    top = max((float(r) for _, r in rows), default=0.0) or 1.0
+    return [(g, float(r) / top) for g, r in rows]
+
+
+async def smart_search(session: AsyncSession, user_id: uuid.UUID, query_vec: list[float] | None, parsed, profile: dict[str, float],
                        exclude: set[uuid.UUID], hw: Hardware | None, seed_games: list[Game], limit: int = 20,
-                       explain: bool = False) -> list[Recommendation]:
+                       explain: bool = False) -> tuple[str, list[Recommendation]]:
+    """Returns (mode, results). mode is 'semantic' (embeddings) or 'keyword' (graceful fallback when there is no
+    query vector — provider down — or no game has an embedding yet)."""
     s = get_settings()
-    vec = list(query_vec)
-    if seed_games:                                   # "parecido com X": blend in the seeds' embeddings
-        embs = (await session.execute(select(GameEmbedding.embedding).where(GameEmbedding.game_id.in_([g.id for g in seed_games])))).scalars().all()
-        if embs:
-            for i in range(len(vec)):
-                vec[i] = 0.5 * vec[i] + 0.5 * sum(float(e[i]) for e in embs) / len(embs)
     it = parsed.intent
     # Constraints the user stated explicitly are hard filters (duration gets 50% slack: "about 30h").
     hard = Filters(platforms=sorted(it.platforms), max_price_cents=it.max_price_cents,
                    max_hours=it.max_duration_hours * 1.5 if it.max_duration_hours else None)
-    pairs = await vector_candidates(session, vec, hard, exclude | {g.id for g in seed_games})
-    sims = _normalise_similarity(pairs)
-    cands = [_to_candidate(g, sims[g.id], hw) for g, _ in pairs]
-    scored = rank(cands, profile, it, s.reco_weights, limit)
-    return _present(scored, {g.slug: g for g, _ in pairs}, explain)
+    skip = exclude | {g.id for g in seed_games}
+
+    pairs: list[tuple[Game, float]] = []
+    if query_vec is not None:
+        vec = list(query_vec)
+        if seed_games:                                   # "parecido com X": blend in the seeds' embeddings
+            embs = (await session.execute(select(GameEmbedding.embedding).where(GameEmbedding.game_id.in_([g.id for g in seed_games])))).scalars().all()
+            if embs:
+                for i in range(len(vec)):
+                    vec[i] = 0.5 * vec[i] + 0.5 * sum(float(e[i]) for e in embs) / len(embs)
+        pairs = await vector_candidates(session, vec, hard, skip)
+
+    if pairs:
+        sims = _normalise_similarity(pairs)
+        games = {g.id: g for g, _ in pairs}
+        intent = it
+        mode = "semantic"
+    else:
+        mode = "keyword"
+        sims = {g.id: sim for g, sim in await fts_candidates(session, parsed.text, hard, skip)}
+        games = {}
+        for g in await top_rated(session, hard, skip, 120):
+            games[g.id] = g
+        for g, _ in await fts_candidates(session, parsed.text, hard, skip):
+            games[g.id] = g
+        # "like Skyrim" without embeddings: borrow the seeds' main genres as soft preferences.
+        intent = replace(it, genres=set(it.genres) | {x for g in seed_games for x in g.genres[:2]})
+
+    cands = [_to_candidate(g, sims.get(g.id, 0.0), hw) for g in games.values()]
+    scored = rank(cands, profile, intent, s.reco_weights, limit)
+    return mode, _present(scored, {g.slug: g for g in games.values()}, explain)

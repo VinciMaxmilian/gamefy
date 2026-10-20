@@ -77,7 +77,7 @@ async def test_smart_search_and_free_quota(client, db_ready):
         r = await client.get("/api/search/smart", params={"q": "cozy relaxing farming game under $20"})
         assert r.status_code == 200, r.text
         body = r.json()
-    assert body["remaining_today"] == 0 and body["understood"]["max_price_cents"] == 2000
+    assert body["remaining_today"] == 0 and body["understood"]["max_price_cents"] == 2000 and body["mode"] == "semantic"
     assert all((i["game"]["price_cents"] or 0) <= 2000 for i in body["items"])
     assert (await client.get("/api/search/smart", params={"q": "another one"})).status_code == 429   # quota exhausted
     assert (await client.get("/api/search/smart", params={"q": "x" * 301})).status_code == 422
@@ -193,3 +193,26 @@ async def test_pagination_is_complete_and_stable(client, db_ready):
         seen += [g["slug"] for g in page["items"]]
     assert len(seen) == len(set(seen)) == min(total, 40)                      # no duplicates or gaps across pages
     assert (await client.get("/api/games", params={"offset": 50_000, "limit": 5})).json()["items"] == []
+
+
+async def test_smart_search_falls_back_to_keywords_without_embeddings(client, db_ready, monkeypatch):
+    from app.services import recommend
+    async def none(*a, **k):
+        return []
+    monkeypatch.setattr(recommend, "vector_candidates", none)                       # as if no game had an embedding
+    await create_user(client)
+    r = (await client.get("/api/search/smart", params={"q": "difficult boss fights under $60"})).json()
+    assert r["mode"] == "keyword" and r["items"]
+    top = r["items"][:5]
+    assert any("difficult" in i["game"]["tags"] or "bosses" in i["game"]["tags"] for i in top)   # keyword + tag match surfaces relevant games
+    assert all((i["game"]["price_cents"] or 0) <= 6000 for i in r["items"])                      # stated budget is still a hard filter
+
+
+async def test_smart_search_survives_embedding_provider_failure(client, db_ready, monkeypatch):
+    from app.services import embeddings
+    async def boom(*a, **k):
+        raise RuntimeError("provider down")
+    monkeypatch.setattr(embeddings, "embed_query", boom)
+    await create_user(client)
+    r = await client.get("/api/search/smart", params={"q": "hard boss fights"})
+    assert r.status_code == 200 and r.json()["mode"] == "keyword" and r.json()["items"]

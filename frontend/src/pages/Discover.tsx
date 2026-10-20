@@ -46,6 +46,7 @@ export default function Discover() {
             <p className="text-fg-2"><span className="spark">✦</span> {t("discover.understood")}</p>
             <div className="flex flex-wrap gap-2">{chips.length ? chips.map((c) => <Badge key={c} tone="accent" className="px-3 py-1 text-sm">{c}</Badge>) : <span className="text-sm text-fg-3">{t("discover.by_meaning")}</span>}</div>
             <p className="text-sm text-fg-3">{t("discover.left", { n: res.data.remaining_today })}</p>
+            {res.data.mode === "keyword" && <p className="text-sm text-fg-3">{t("discover.keyword_note")}</p>}
           </div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
             {res.data.items.map((r) => <GameCardView key={r.game.slug} game={r.game} reasons={r.reasons} compat={r.compatibility?.verdict} dismissible />)}

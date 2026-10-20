@@ -125,7 +125,9 @@ async def test_login_brute_force_limited(client):
 
 async def test_ready_probe_reports_db_without_leaking_details(client, db_ready):
     r = await client.get("/api/health/ready")
-    assert r.status_code == 200 and r.json() == {"ok": True, "db": True, "missing_tables": []}
+    d = r.json()
+    assert r.status_code == 200 and d["ok"] and d["db"] and d["missing_tables"] == []
+    assert d["embeddings"]["provider"] and isinstance(d["embeddings"]["count"], int)
 
 
 async def test_hs256_without_secret_falls_back_to_auth_provider(monkeypatch):

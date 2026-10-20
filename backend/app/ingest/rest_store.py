@@ -36,6 +36,14 @@ class Rest:
         self._ok(r)
         return r.json()
 
+    async def select_all(self, table: str, params: dict, page: int = 1000) -> list[dict]:
+        out: list[dict] = []
+        while True:
+            chunk = await self.select(table, {**params, "limit": str(page), "offset": str(len(out))})
+            out += chunk
+            if len(chunk) < page:
+                return out
+
     async def upsert(self, table: str, rows: list[dict], on_conflict: str, returning: bool = True) -> list[dict]:
         """Bulk upsert. PostgREST needs identical keys per request, so rows are grouped by key set."""
         out: list[dict] = []
@@ -97,3 +105,30 @@ async def recompute_best_price(rest: Rest, game_id: str) -> None:
     rows = await rest.select("store_links", {"select": "price_cents", "game_id": f"eq.{game_id}", "price_cents": "not.is.null", "currency": "eq.USD"})
     if rows:
         await rest.patch("games", {"id": f"eq.{game_id}"}, {"price_cents": min(r["price_cents"] for r in rows)})
+
+
+async def embed_games(rest: Rest, provider, batch: int = 50) -> tuple[int, int, int]:
+    """(Re)embed games whose semantic document or provider changed, writing through the REST API.
+    pgvector accepts the textual form '[0.1,0.2,...]'. Returns (games embedded, tokens, cost in micro-USD)."""
+    from ..ai.semantic_doc import build_semantic_doc, doc_hash
+    games = await rest.select_all("games", {"select": "id,slug,title,genres,tags,features,platforms,avg_duration_hours,difficulty,summary,description", "order": "id"})
+    have = {e["game_id"]: e["doc_hash"] for e in await rest.select_all("game_embeddings", {"select": "game_id,doc_hash", "order": "game_id"})}
+    todo = []
+    for g in games:
+        doc, flagged = build_semantic_doc(g)
+        if flagged:
+            print(f"! {g['slug']}: suspicious free text dropped from semantic doc")
+        h = doc_hash(doc, provider.name)
+        if have.get(g["id"]) != h:
+            todo.append((g["id"], h, doc))
+    tokens = cost = done = 0
+    for i in range(0, len(todo), batch):
+        chunk = todo[i:i + batch]
+        res = await provider.embed([d for _, _, d in chunk], task="document")
+        tokens += res.tokens_in; cost += res.cost_micro_usd
+        await rest.upsert("game_embeddings", [
+            {"game_id": gid, "embedding": "[" + ",".join(f"{x:.6f}" for x in vec) + "]", "doc_hash": h, "model": res.model}
+            for (gid, h, _), vec in zip(chunk, res.vectors)], on_conflict="game_id", returning=False)
+        done += len(chunk)
+        print(f"embedded {done}/{len(todo)}")
+    return done, tokens, cost

@@ -18,7 +18,7 @@ export interface Me {
   limits: { smart_search_per_day: number; ai_chat_per_day: number }; usage: { smart_search_today: number };
 }
 export interface SmartResult {
-  query: string; remaining_today: number; items: Recommendation[];
+  query: string; mode: "semantic" | "keyword"; remaining_today: number; items: Recommendation[];
   understood: { genres: string[]; tags: string[]; features: string[]; platforms: string[]; max_price_cents: number | null; max_duration_hours: number | null; similar_to: string[] };
 }
 export interface TasteItem { key: string; label: string; kind: string; weight: number }

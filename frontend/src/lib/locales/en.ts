@@ -43,7 +43,7 @@ const en = {
   "discover.quota_title": "You’ve used today’s smart searches", "discover.quota_body": "Free accounts get a few each day. Classic search and your recommendations are always available.",
   "discover.see_premium": "See Premium", "discover.classic_short": "Classic search",
   "discover.unavailable": "Smart search is unavailable right now", "discover.understood": "Here’s what we understood",
-  "discover.by_meaning": "Matching by overall meaning.", "discover.left": "{n} smart search left today|{n} smart searches left today",
+  "discover.keyword_note": "Showing keyword matches. Search by meaning is still being prepared.", "discover.by_meaning": "Matching by overall meaning.", "discover.left": "{n} smart search left today|{n} smart searches left today",
   "discover.like": "like {title}", "discover.under": "under {price}",
 
   "game.not_found": "Game not found", "game.back": "Back to store", "game.to_play": "{hours} to play", "game.difficulty": "Difficulty {n}/5",

@@ -26,6 +26,7 @@ class ForYou(BaseModel):
 
 class SmartResult(BaseModel):
     query: str
+    mode: str
     understood: dict
     remaining_today: int
     items: list[Recommendation]
@@ -55,13 +56,13 @@ async def smart(request: Request, q: Annotated[str, Query(min_length=2, max_leng
 
     try:
         vec = await embeddings.embed_query(session, principal.user_id, parsed.text, "/search/smart")
-    except Exception as exc:  # noqa: BLE001 - provider down / timeout; the client falls back to classic search
-        raise HTTPException(503, "Semantic search is temporarily unavailable") from exc
+    except Exception:  # noqa: BLE001 - provider down / timeout: degrade to keyword mode instead of failing
+        vec = None
 
     profile, _, _ = await recommend.compute_profile(session, principal.user_id)
     hw = await recommend.load_hardware(session, principal.user_id) if fits_my_pc else None
     seeds = await recommend.find_by_titles(session, parsed.similar_titles)
-    items = await recommend.smart_search(session, principal.user_id, vec, parsed, profile, set(), hw, seeds, 20, explain)
+    mode, items = await recommend.smart_search(session, principal.user_id, vec, parsed, profile, set(), hw, seeds, 20, explain)
     session.add(UserEvent(user_id=principal.user_id, type="search", query=parsed.text[:200]))
     await session.commit()
     it = parsed.intent
@@ -73,6 +74,7 @@ async def smart(request: Request, q: Annotated[str, Query(min_length=2, max_leng
             "similar_to": [g.title for g in seeds],
             "provider": get_provider().name,
         },
+        "mode": mode,
         "remaining_today": remaining,
         "items": items,
     }
