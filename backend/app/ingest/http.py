@@ -6,6 +6,8 @@ import time
 
 import httpx
 
+from ..tlsutil import client_verify
+
 log = logging.getLogger("gamefy.ingest")
 USER_AGENT = "Gamefy/0.1 (+https://github.com/VinciMaxmilian/gamefy)"   # CheapShark rejects generic/missing UAs
 MAX_BYTES = 8 * 1024 * 1024
@@ -17,7 +19,7 @@ class Throttled:
         self.min_interval = min_interval
         self._last = 0.0
         self._lock = asyncio.Lock()
-        self._client = httpx.AsyncClient(timeout=timeout, follow_redirects=False,
+        self._client = httpx.AsyncClient(timeout=timeout, follow_redirects=False, verify=client_verify(),
                                          headers={"User-Agent": USER_AGENT, **(headers or {})})
 
     async def aclose(self) -> None:

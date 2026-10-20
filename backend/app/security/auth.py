@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import get_settings
 from ..db import get_session
 from ..kv import get_kv
+from ..tlsutil import client_verify
 from ..models import Profile
 from .ratelimit import hash_value, hit
 
@@ -63,7 +64,7 @@ def verify_access_token(token: str) -> dict:
 async def _fetch_gotrue_user(token: str) -> dict | None:
     s = get_settings()
     try:
-        async with httpx.AsyncClient(timeout=6) as client:
+        async with httpx.AsyncClient(timeout=6, verify=client_verify()) as client:
             r = await client.get(f"{s.supabase_url}/auth/v1/user",
                                  headers={"apikey": s.supabase_publishable_key, "Authorization": f"Bearer {token}"})
     except httpx.HTTPError:

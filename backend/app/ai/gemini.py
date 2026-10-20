@@ -1,6 +1,7 @@
 import httpx
 
 from ..config import get_settings
+from ..tlsutil import client_verify
 from .provider import EmbedResult, GenerateResult, estimate_tokens, l2_normalize
 
 BASE = "https://generativelanguage.googleapis.com/v1beta"
@@ -21,7 +22,7 @@ class GeminiProvider:
         model = s.gemini_embed_model
         task_type = "RETRIEVAL_QUERY" if task == "query" else "RETRIEVAL_DOCUMENT"
         vectors: list[list[float]] = []
-        async with httpx.AsyncClient(timeout=s.ai_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=s.ai_timeout_seconds, verify=client_verify()) as client:
             for i in range(0, len(texts), 50):  # batchEmbedContents limit
                 chunk = texts[i:i + 50]
                 body = {"requests": [{
@@ -49,7 +50,7 @@ class GeminiProvider:
             "contents": [{"role": "user", "parts": [{"text": user}]}],
             "generationConfig": gen_cfg,
         }
-        async with httpx.AsyncClient(timeout=s.ai_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=s.ai_timeout_seconds, verify=client_verify()) as client:
             r = await client.post(f"{BASE}/models/{s.gemini_chat_model}:generateContent", json=body, headers=self._headers)
             r.raise_for_status()
         data = r.json()

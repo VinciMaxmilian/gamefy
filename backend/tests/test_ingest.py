@@ -179,3 +179,20 @@ async def test_refresh_embeddings_survives_multiple_batches(db_ready):
             assert have == 5
         finally:
             await session.execute(text("delete from games where slug like 'zz-batch-test-%'")); await session.commit()
+
+
+def test_system_trust_store_is_opt_in_per_platform(monkeypatch):
+    import sys
+    from scripts import _tls
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert _tls.use_system_trust_store() is False          # never touches Linux/CI TLS setup
+
+
+def test_client_verify_uses_os_trust_store_only_on_windows_and_macos(monkeypatch):
+    import ssl, sys
+    from app import tlsutil
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert tlsutil.client_verify() is True
+    monkeypatch.setattr(sys, "platform", "win32")
+    ctx = tlsutil.client_verify()
+    assert isinstance(ctx, ssl.SSLContext) and type(ctx).__module__.startswith("truststore")

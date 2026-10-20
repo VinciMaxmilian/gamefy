@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
+from ..tlsutil import client_verify
 from ..db import get_session
 from ..schemas import ConfirmEmail, Credentials, EmailOnly, ResetPassword
 from ..security.audit import audit
@@ -31,7 +32,7 @@ async def _gotrue(method: str, path: str, *, json: dict | None = None, bearer: s
     if bearer:
         headers["Authorization"] = f"Bearer {bearer}"
     try:
-        async with httpx.AsyncClient(timeout=8) as client:
+        async with httpx.AsyncClient(timeout=8, verify=client_verify()) as client:
             return await client.request(method, f"{s.supabase_url}/auth/v1{path}", json=json, headers=headers, params=params)
     except httpx.HTTPError as exc:
         log.error("gotrue_unreachable", extra={"error": type(exc).__name__})

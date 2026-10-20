@@ -8,3 +8,4 @@ pydantic-settings==2.7.0
 email-validator==2.2.0
 httpx==0.28.1
 pyjwt[crypto]==2.10.1
+truststore>=0.9.1; sys_platform == "win32" or sys_platform == "darwin"
