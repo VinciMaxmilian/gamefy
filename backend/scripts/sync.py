@@ -33,7 +33,7 @@ async def cmd_igdb(a) -> None:
     client = igdb_mod.IGDB()
     n = skipped = links = 0
     try:
-        async with AsyncSession(get_engine()) as session:
+        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
             for page in range(a.pages):
                 batch = await client.games(limit=a.page_size, offset=page * a.page_size, min_ratings=a.min_ratings)
                 if not batch:
@@ -43,9 +43,14 @@ async def cmd_igdb(a) -> None:
                     if not mapped:
                         skipped += 1
                         continue
-                    gid = await store.upsert_game(session, mapped["game"])
-                    links += await store.replace_links(session, gid, "igdb", mapped["links"])
-                    n += 1
+                    try:
+                        async with session.begin_nested():          # savepoint: a bad record must not sink the batch
+                            gid = await store.upsert_game(session, mapped["game"])
+                            links += await store.replace_links(session, gid, "igdb", mapped["links"])
+                        n += 1
+                    except Exception as exc:  # noqa: BLE001
+                        skipped += 1
+                        print(f"! {mapped['game']['slug']}: {type(exc).__name__}: {str(exc).splitlines()[0][:120]}")
                 await session.commit()
                 print(f"page {page + 1}: {n} imported, {skipped} skipped")
             done, tokens, cost = await refresh_embeddings(session)
@@ -120,7 +125,7 @@ async def _enrich_from_steam(session: AsyncSession, steam: Steam, games: list[Ga
 async def cmd_steam(a) -> None:
     steam = Steam()
     try:
-        async with AsyncSession(get_engine()) as session:
+        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
             await _enrich_from_steam(session, steam, await _steam_targets(session, a.limit))
     finally:
         await steam.aclose()
@@ -132,7 +137,7 @@ async def cmd_steam_changed(a) -> None:
         since = int(time.time() - a.since_hours * 3600)
         changed = {app["appid"] async for app in steam.modified_apps(since)}
         print(f"steam reports {len(changed)} changed apps")
-        async with AsyncSession(get_engine()) as session:
+        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
             await _enrich_from_steam(session, steam, await _steam_targets(session, a.limit, changed))
     finally:
         await steam.aclose()
@@ -142,7 +147,7 @@ async def cmd_prices(a) -> None:
     cs = CheapShark()
     ok = 0
     try:
-        async with AsyncSession(get_engine()) as session:
+        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
             for g in await _steam_targets(session, a.limit):
                 try:
                     gid = await cs.game_id_for_steam_app(g.steam_appid)
@@ -160,7 +165,7 @@ async def cmd_prices(a) -> None:
 
 
 async def cmd_purge_seed(_a) -> None:
-    async with AsyncSession(get_engine()) as session:
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
         r = await session.execute(delete(Game).where(Game.source == "seed"))
         await session.commit()
         print(f"removed {r.rowcount} demo games")

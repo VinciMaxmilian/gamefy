@@ -6,7 +6,7 @@ async def test_catalog_search_filters_and_pagination(client, db_ready):
     r = await client.get("/api/games", params={"limit": 5})
     assert r.status_code == 200 and r.json()["total"] >= 30 and len(r.json()["items"]) == 5
     r = await client.get("/api/games", params={"q": "witch"})                       # prefix FTS
-    assert [g["slug"] for g in r.json()["items"]][:1] == ["witcher-3"]
+    assert "witcher" in r.json()["items"][0]["title"].lower()          # works for both demo and imported catalogs
     r = await client.get("/api/games", params={"genres": ["rpg"], "platforms": ["switch"], "max_price": 4000, "sort": "rating"})
     items = r.json()["items"]
     assert items and all("rpg" in g["genres"] and "switch" in g["platforms"] and g["price_cents"] <= 4000 for g in items)

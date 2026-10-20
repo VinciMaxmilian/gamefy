@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +14,7 @@ async def refresh_embeddings(session: AsyncSession, batch: int = 50) -> tuple[in
     provider = get_provider()
     games = (await session.execute(select(Game))).scalars().all()
     existing = {e.game_id: e for e in (await session.execute(select(GameEmbedding))).scalars()}
-    todo: list[tuple[Game, str, str]] = []
+    todo: list[tuple[uuid.UUID, str, str]] = []      # plain values: ORM objects expire on commit
     for g in games:
         doc, flagged = build_semantic_doc({
             "title": g.title, "genres": g.genres, "tags": g.tags, "features": g.features, "platforms": g.platforms,
@@ -22,14 +24,14 @@ async def refresh_embeddings(session: AsyncSession, batch: int = 50) -> tuple[in
         h = doc_hash(doc, provider.name)
         if (e := existing.get(g.id)) and e.doc_hash == h:
             continue
-        todo.append((g, h, doc))
+        todo.append((g.id, h, doc))
     tokens = cost = 0
     for i in range(0, len(todo), batch):
         chunk = todo[i:i + batch]
         res = await provider.embed([d for _, _, d in chunk], task="document")
         tokens += res.tokens_in; cost += res.cost_micro_usd
-        for (g, h, _), vec in zip(chunk, res.vectors):
-            stmt = insert(GameEmbedding).values(game_id=g.id, embedding=vec, doc_hash=h, model=res.model)
+        for (gid, h, _), vec in zip(chunk, res.vectors):
+            stmt = insert(GameEmbedding).values(game_id=gid, embedding=vec, doc_hash=h, model=res.model)
             await session.execute(stmt.on_conflict_do_update(index_elements=["game_id"], set_={"embedding": vec, "doc_hash": h, "model": res.model}))
         await session.commit()
     return len(todo), tokens, cost

@@ -143,3 +143,39 @@ async def test_igdb_client_follows_documented_flow(monkeypatch):
     body = k1["content"]
     assert body.rstrip().endswith("limit 100; offset 200;") and "total_rating_count >= 50" in body and "version_parent = null" in body
     assert len(seen) == 3 and k2["headers"]["Authorization"] == "Bearer tok789"      # token fetched once, reused
+
+
+async def test_replace_links_dedupes_same_store(db_ready):
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from app.db import get_engine
+    from app.ingest import store as ingest_store
+    async with AsyncSession(get_engine()) as session:
+        gid = (await session.execute(text("select id from games limit 1"))).scalar_one()
+        n = await ingest_store.replace_links(session, gid, "igdb", [
+            {"store": "nintendo", "source": "igdb", "url": "https://www.nintendo.com/a"},
+            {"store": "nintendo", "source": "igdb", "url": "https://www.nintendo.com/b"},     # same store twice (seen in real IGDB data)
+            {"store": "steam", "source": "igdb", "url": "https://store.steampowered.com/app/1/"},
+            {"store": "gog", "source": "igdb", "url": "https://evil.example/x"}])
+        assert n == 2
+        await session.rollback()
+
+
+async def test_refresh_embeddings_survives_multiple_batches(db_ready):
+    """Regression: with more games than one batch, ORM objects expired after the first commit (MissingGreenlet)."""
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from app.db import get_engine
+    from app.ingest.embed import refresh_embeddings
+    slugs = [f"zz-batch-test-{i}" for i in range(5)]
+    async with AsyncSession(get_engine()) as session:           # default expire_on_commit=True on purpose
+        for sl in slugs:
+            await session.execute(text("insert into games(slug,title,summary,genres,tags,platforms) values(:s,:s,'a test game',array['rpg'],array['x'],array['pc'])"), {"s": sl})
+        await session.commit()
+        try:
+            n, _, _ = await refresh_embeddings(session, batch=2)             # 3 batches
+            assert n >= 5
+            have = (await session.execute(text("select count(*) from games g join game_embeddings e on e.game_id=g.id where g.slug like 'zz-batch-test-%'"))).scalar_one()
+            assert have == 5
+        finally:
+            await session.execute(text("delete from games where slug like 'zz-batch-test-%'")); await session.commit()

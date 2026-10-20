@@ -25,7 +25,7 @@ from scripts.seed_data import GAMES  # noqa: E402
 async def main() -> None:
     engine = get_engine()
     provider = get_provider()
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(engine, expire_on_commit=False) as session:
         for g in GAMES:
             row = {**g, "release_date": dt.date.fromisoformat(g["release_date"]), "source": "seed"}
             stmt = insert(Game).values(**row)

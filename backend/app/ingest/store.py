@@ -32,11 +32,14 @@ async def upsert_game(session: AsyncSession, g: dict) -> uuid.UUID:
 
 async def replace_links(session: AsyncSession, game_id: uuid.UUID, source: str, links: list[dict]) -> int:
     """Replace this source's links for a game. Every URL is re-validated against the allow-list."""
-    clean = []
+    clean, seen = [], set()
     for l in links:
         c = classify_url(l["url"])
         if not c or c[0] != l["store"] and l["source"] != "cheapshark":
             continue
+        if (l["store"], source) in seen:                  # one row per (game, store, source): keep the first link
+            continue
+        seen.add((l["store"], source))
         clean.append({**l, "url": c[1], "game_id": game_id, "source": source})
     await session.execute(delete(StoreLink).where(StoreLink.game_id == game_id, StoreLink.source == source))
     if clean:
