@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     gemini_embed_model: str = "gemini-embedding-001"
     gemini_chat_model: str = "gemini-2.5-flash"
     embed_dim: int = 768
+    # Gemini embedding rate limits used to pace bulk indexing (free tier is roughly 100 requests/min and 30k tokens/min).
+    gemini_embed_rpm: int = 80
+    gemini_embed_tpm: int = 24_000
     # USD per 1M input tokens, used only for cost telemetry.
     embed_cost_per_mtok_usd: float = 0.15
 

@@ -271,3 +271,35 @@ async def test_rest_embedding_writer_is_incremental_and_formats_vectors(monkeypa
     path, rows, params = posts[0]
     assert path == "/game_embeddings" and params == {"on_conflict": "game_id"}
     assert rows[0]["game_id"] == "g2" and rows[0]["embedding"] == "[0.500000,0.250000,-1.000000]" and rows[0]["model"] == "fake-model"
+
+
+async def test_gemini_backoff_honours_retry_hints_and_pacing():
+    import httpx
+    from app.ai.gemini import pace_delay, post_with_retry, retry_delay
+
+    def resp(status, **kw):
+        return httpx.Response(status, request=httpx.Request("POST", "https://g"), **kw)
+    assert retry_delay(resp(429, headers={"retry-after": "7"}), 0) == 7.0
+    assert retry_delay(resp(429, text='{"error":{"details":[{"retryDelay":"23s"}]}}'), 0) == 24.0     # Google's own hint
+    assert retry_delay(resp(429, text="{}"), 2) == 20.0                                               # exponential fallback
+    assert pace_delay(20, 4000, 1.0, rpm=80, tpm=24_000) == max(0.0, 20 * 60 / 80 - 1.0)             # request-limited
+    assert pace_delay(20, 20_000, 0.0, rpm=80, tpm=24_000) == 50.0                                    # token-limited
+
+    script = [resp(429, headers={"retry-after": "0"}), resp(503), resp(200, json={"ok": True})]
+    sleeps = []
+
+    class C:
+        async def post(self, *a, **k):
+            return script.pop(0)
+
+    async def fake_sleep(s):
+        sleeps.append(s)
+    r = await post_with_retry(C(), "https://g", json={}, headers={}, sleep=fake_sleep)
+    assert r.json() == {"ok": True} and len(sleeps) == 2                                              # retried twice, then succeeded
+
+    class Bad:
+        async def post(self, *a, **k):
+            return resp(400, text="bad request")
+    import pytest
+    with pytest.raises(httpx.HTTPStatusError):
+        await post_with_retry(Bad(), "https://g", json={}, headers={}, sleep=fake_sleep)               # real errors are not retried
