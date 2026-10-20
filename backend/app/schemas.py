@@ -92,6 +92,10 @@ class ResetPassword(Strict):
         return self
 
 
+class ConfirmEmail(Strict):
+    token_hash: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_\-]{8,200}$")]
+
+
 # ----------------------------------------------------------------- user data
 class LibraryIn(Strict):
     status: Literal["owned", "playing", "completed", "dropped"] = "owned"

@@ -141,3 +141,38 @@ export function ResetPassword() {
     </Shell>
   );
 }
+
+/** Link from the confirmation e-mail: /confirm-email?token_hash=…&type=signup. The token is scrubbed from the URL
+ *  and only consumed when the button is pressed, so link scanners cannot use it up. */
+export function ConfirmEmail() {
+  const [hash] = useState(() => {
+    const q = new URLSearchParams(window.location.search);
+    return q.get("type") === "signup" ? (q.get("token_hash") ?? "") : "";
+  });
+  useEffect(() => { if (window.location.search) history.replaceState(null, "", window.location.pathname); }, []);
+  const nav = useNavigate();
+  const { refresh } = useAuth();
+  const m = useMutation({
+    mutationFn: () => api("/auth/confirm-email", { method: "POST", body: { token_hash: hash } }),
+    onSuccess: async () => { setSessionHint(true); await refresh(); },
+  });
+  if (m.isSuccess)
+    return (
+      <Shell title="Email confirmed" subtitle="Your account is ready and you’re signed in.">
+        <Button size="lg" className="w-full" onClick={() => nav("/")}>Start discovering</Button>
+      </Shell>
+    );
+  if (!hash)
+    return (
+      <Shell title="This link doesn’t work" footer={<Link to="/login" className="text-accent">Back to log in</Link>}>
+        <p className="text-center text-fg-2">Open the link from your confirmation email on this device. If you already confirmed, just log in.</p>
+        <Button asChild size="lg" className="mt-6 w-full"><Link to="/login">Log in</Link></Button>
+      </Shell>
+    );
+  return (
+    <Shell title="Confirm your email" subtitle="One tap and you’re in.">
+      <Err msg={m.isError ? "This link has expired or was already used. Try logging in, or sign up again." : undefined} />
+      <Button size="lg" className="mt-4 w-full" disabled={m.isPending} onClick={() => m.mutate()}>{m.isPending ? "Confirming…" : "Confirm email"}</Button>
+    </Shell>
+  );
+}

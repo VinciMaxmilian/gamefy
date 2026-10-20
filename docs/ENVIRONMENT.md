@@ -55,7 +55,7 @@ Copie `backend/.env.example`; com `ENVIRONMENT=development`, `COOKIE_SECURE=fals
   * *Redirect URLs*: `https://gamefyapp.netlify.app/reset-password` (e `http://localhost:5173/reset-password` para testar)
   * Se `/reset-password` não estiver na lista (ou `CORS_ORIGINS` não estiver definida na Vercel), o Supabase manda o usuário para a raiz do site. O app agora encaminha isso para a página de redefinição, mas o ideal é corrigir a configuração.
 * **Authentication → Providers → Email**: decida se exige confirmação de e-mail (a API funciona nos dois casos).
-* **Authentication → Emails → Templates → Reset Password** — **troque o link** (isto evita o erro `otp_expired`):
+* **Authentication → Emails → Templates** — use os templates prontos em `supabase/email-templates/` (**Confirm sign up** e **Reset password**; veja o README da pasta). Eles usam `token_hash`, o que evita o erro `otp_expired`. Resumo do link de recuperação:
   scanners de e-mail (Gmail/Outlook) abrem o link antes de você e queimam o token de uso único do link padrão. Com `token_hash`,
   o token só é consumido quando você envia a nova senha na nossa página:
   ```html

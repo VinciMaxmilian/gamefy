@@ -18,6 +18,7 @@ const Login = lazy(() => AuthPages.then((m) => ({ default: m.Login })));
 const Signup = lazy(() => AuthPages.then((m) => ({ default: m.Signup })));
 const Recover = lazy(() => AuthPages.then((m) => ({ default: m.Recover })));
 const ResetPassword = lazy(() => AuthPages.then((m) => ({ default: m.ResetPassword })));
+const ConfirmEmail = lazy(() => AuthPages.then((m) => ({ default: m.ConfirmEmail })));
 
 /** Supabase falls back to the Site URL (root) when a redirect URL isn't allow-listed, appending the result
  *  in the hash. Forward recovery results to the reset page instead of leaving the user on a silent home page. */
@@ -60,6 +61,7 @@ export default function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/recover" element={<Recover />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/confirm-email" element={<ConfirmEmail />} />
             <Route path="*" element={<div className="py-32 text-center"><h1 className="text-5xl">404</h1><p className="mt-3 text-fg-2">That page doesn’t exist.</p><Button asChild className="mt-8"><Link to="/">Go home</Link></Button></div>} />
           </Routes>
         </Suspense>

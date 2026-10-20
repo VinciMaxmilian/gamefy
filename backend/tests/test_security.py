@@ -187,3 +187,20 @@ async def test_reset_password_requires_exactly_one_credential(client):
                  {"password": "correct horse battery", "token_hash": "goodhash12345", "access_token": "y" * 30},
                  {"password": "correct horse battery", "token_hash": "bad hash!"}):
         assert (await client.post("/api/auth/reset-password", json=body)).status_code == 422
+
+
+async def test_confirm_email_signs_in_with_cookies(client, monkeypatch):
+    from app.routers import auth as auth_router
+
+    async def fake(method, path, **kw):
+        assert (method, path, kw["json"]["type"]) == ("POST", "/verify", "signup")
+        if kw["json"]["token_hash"] != "goodhash12345":
+            return _R(403)
+        return _R(200, {"access_token": "t" * 30, "refresh_token": "r" * 12, "expires_in": 3600, "user": {"id": "11111111-1111-1111-1111-111111111111"}})
+    monkeypatch.setattr(auth_router, "_gotrue", fake)
+    ok = await client.post("/api/auth/confirm-email", json={"token_hash": "goodhash12345"})
+    set_cookie = ok.headers.get_list("set-cookie")
+    assert ok.status_code == 200 and any(c.startswith("gf_at=") and "HttpOnly" in c for c in set_cookie)
+    assert ok.json() == {"ok": True} and "t" * 30 not in ok.text            # tokens never reach JS
+    assert (await client.post("/api/auth/confirm-email", json={"token_hash": "wronghash1234"})).status_code == 400
+    assert (await client.post("/api/auth/confirm-email", json={"token_hash": "bad hash!"})).status_code == 422

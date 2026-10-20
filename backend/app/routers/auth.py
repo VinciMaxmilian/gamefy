@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
 from ..db import get_session
-from ..schemas import Credentials, EmailOnly, ResetPassword
+from ..schemas import ConfirmEmail, Credentials, EmailOnly, ResetPassword
 from ..security.audit import audit
 from ..security.auth import (
     ACCESS_COOKIE, CSRF_COOKIE, REFRESH_COOKIE, Principal, clear_auth_cookies, optional_user, set_auth_cookies,
@@ -60,6 +60,21 @@ async def signup(body: Credentials, request: Request, session: AsyncSession = De
     await audit(session, request, "signup", ok=r.status_code < 400)
     # Same response whether the email exists or not (no account enumeration).
     return {"message": "If this email can be registered, your account is ready. Check your inbox if confirmation is required, then log in."}
+
+
+@router.post("/confirm-email")
+async def confirm_email(body: ConfirmEmail, request: Request, response: Response, session: AsyncSession = Depends(get_session)) -> dict:
+    """Consumes the signup token_hash only when the user clicks the button on our page (mail scanners that
+    pre-open the link cannot burn it), then signs the user in with HttpOnly cookies."""
+    await hit("confirm_ip", hash_value(client_ip(request)), 20, 3600)
+    r = await _gotrue("POST", "/verify", json={"type": "signup", "token_hash": body.token_hash})
+    d = r.json() if r.status_code == 200 else {}
+    if "access_token" not in d:
+        await audit(session, request, "confirm_email_rejected")
+        raise HTTPException(400, "Invalid or expired confirmation link")
+    set_auth_cookies(response, d["access_token"], d.get("refresh_token"), int(d.get("expires_in", 3600)))
+    await audit(session, request, "email_confirmed", user_id=_uid(d))
+    return {"ok": True}
 
 
 @router.post("/login")
