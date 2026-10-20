@@ -48,6 +48,29 @@ Depois de salvar as variáveis, faça **Redeploy** (elas só valem em deploys no
 
 Copie `backend/.env.example`; com `ENVIRONMENT=development`, `COOKIE_SECURE=false`, `CORS_ORIGINS=http://localhost:5173`, e `DATABASE_URL` do pooler (ou um Postgres local).
 
+## IGDB (Twitch) — passo a passo (segundo https://api-docs.igdb.com/#getting-started)
+
+1. Conta na Twitch com **autenticação em dois fatores ligada** (exigência da Twitch).
+2. https://dev.twitch.tv/console → **Register Your Application**:
+   * *Name*: algo único, ex. `gamefy-catalog`
+   * *OAuth Redirect URLs*: `http://localhost` (o IGDB não usa este campo, mas ele é obrigatório)
+   * *Category*: `Website Integration` · *Client Type*: **Confidential** (sem isso não há Client Secret)
+3. Abra **Manage** no app → copie o **Client ID** e clique em **New Secret** para gerar o **Client Secret** (ele aparece uma vez).
+4. Guarde nas variáveis `IGDB_CLIENT_ID` e `IGDB_CLIENT_SECRET` (ambiente local e/ou *secrets* do GitHub; **nunca** na Vercel/Netlify nem no chat).
+5. Verifique, sem gravar nada no banco:
+   ```bash
+   cd backend && export IGDB_CLIENT_ID=… IGDB_CLIENT_SECRET=…
+   python -m scripts.sync igdb-check
+   ```
+   Saída esperada: `OK: token obtained …` e 3 jogos mapeados (gêneros, plataformas, `steam_appid`, lojas).
+6. Importe: `python -m scripts.sync igdb --pages 3`.
+
+Fatos da documentação: o token vem de `POST https://id.twitch.tv/oauth2/token` (`grant_type=client_credentials`) e dura semanas;
+as chamadas vão para `https://api.igdb.com/v4/<endpoint>` com os cabeçalhos `Client-ID` e `Authorization: Bearer …`;
+limite de **4 req/s** e 8 requisições abertas (o cliente já espaça 0,3 s). **Uso gratuito é só não comercial**, sob o Twitch Developer
+Service Agreement; para uso comercial, a parceria é combinada com **partner@igdb.com**. Nomes de campo que o IGDB está renomeando
+(`website.category`→`type`, `game.category`→`game_type`) **não** são usados por este importador.
+
 ## 5) Configurações do Supabase que **não** são variáveis (painel)
 
 * **Authentication → URL Configuration**

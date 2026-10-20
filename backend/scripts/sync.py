@@ -4,6 +4,7 @@
     python -m scripts.sync steam  --limit 150 [--stale-days 7]                  # requirements, summary, Steam price
     python -m scripts.sync prices --limit 150                                   # CheapShark cross-store prices
     python -m scripts.sync steam-changed --since-hours 48                       # refresh only apps Steam says changed
+    python -m scripts.sync igdb-check                                           # verify IGDB credentials (no DB writes)
     python -m scripts.sync purge-seed                                           # drop the demo catalog
 
 Every job is idempotent and commits per game, so a rate-limit stop loses nothing.
@@ -51,6 +52,38 @@ async def cmd_igdb(a) -> None:
             print(f"done: {n} games, {links} store links, {done} embeddings (~{tokens} tokens, ${cost / 1e6:.4f})")
     finally:
         await client.aclose()
+
+
+async def cmd_igdb_check(_a) -> None:
+    """Validate IGDB credentials end to end WITHOUT touching the database: token, one query, mapping."""
+    from app.config import get_settings
+    st = get_settings()
+    print(f"IGDB_CLIENT_ID     : {'set (' + st.igdb_client_id[:4] + '…)' if st.igdb_client_id else 'MISSING'}")
+    print(f"IGDB_CLIENT_SECRET : {'set' if st.igdb_client_secret else 'MISSING'}")
+    try:
+        client = igdb_mod.IGDB()
+    except RuntimeError as exc:
+        print(f"FAILED: {exc}. Export both variables first (see docs/ENVIRONMENT.md → IGDB).")
+        raise SystemExit(1)
+    try:
+        raw = await client.games(limit=3, min_ratings=500)
+    except Exception as exc:  # noqa: BLE001
+        import httpx
+        if isinstance(exc, httpx.HTTPStatusError):
+            print(f"FAILED: HTTP {exc.response.status_code} from {exc.request.url.host}: {exc.response.text[:200]}")
+            print("  400/403 from id.twitch.tv  -> wrong Client ID/Secret (generate a new secret in the Twitch console)")
+            print("  401 from api.igdb.com      -> token rejected; 429 -> rate limited (4 req/s)")
+        else:
+            print(f"FAILED: {type(exc).__name__}: {exc}")
+        raise SystemExit(1)
+    finally:
+        await client.aclose()
+    print(f"OK: token obtained and /games answered with {len(raw)} records. Mapped preview:")
+    for r in raw:
+        m = igdb_mod.to_game(r)
+        if m:
+            g = m["game"]
+            print(f"  - {g['title']} | genres={g['genres']} | platforms={g['platforms']} | steam_appid={g['steam_appid']} | links={[l['store'] for l in m['links']]}")
 
 
 async def _steam_targets(session: AsyncSession, limit: int, appids: set[int] | None = None) -> list[Game]:
@@ -141,6 +174,7 @@ def main() -> None:
     s = sub.add_parser("steam-changed"); s.add_argument("--since-hours", type=int, default=48); s.add_argument("--limit", type=int, default=300); s.set_defaults(fn=cmd_steam_changed)
     s = sub.add_parser("prices"); s.add_argument("--limit", type=int, default=150); s.set_defaults(fn=cmd_prices)
     sub.add_parser("purge-seed").set_defaults(fn=cmd_purge_seed)
+    sub.add_parser("igdb-check").set_defaults(fn=cmd_igdb_check)
     a = p.parse_args()
     asyncio.run(a.fn(a))
 

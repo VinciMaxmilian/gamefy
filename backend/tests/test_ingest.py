@@ -109,3 +109,37 @@ def test_steam_requirements_real_world_noise():
     html = ('<ul><li><strong>Graphics:</strong> GeForce GTX 1660 / Radeon RX 5500 XT 8GB / Arc A580<br></li>'
             '<li><strong>Storage:</strong> 60 SSD GB available space<br></li><li><strong>Additional Notes:</strong> VRAM 6 GB</li></ul>')
     assert parse_requirements({"minimum": html}) == {"min": {"gpu_tier": 5, "storage_gb": 60, "vram_gb": 6}}
+
+
+async def test_igdb_client_follows_documented_flow(monkeypatch):
+    """Matches https://api-docs.igdb.com/#getting-started : POST id.twitch.tv/oauth2/token with client_id,
+    client_secret, grant_type=client_credentials; then POST api.igdb.com/v4/games with Client-ID and
+    'Bearer <token>' headers and an Apicalypse body. The token is reused."""
+    import httpx
+    from app.config import get_settings
+    from app.ingest import http as http_mod
+    s = get_settings()
+    monkeypatch.setattr(s, "igdb_client_id", "cid123"); monkeypatch.setattr(s, "igdb_client_secret", "sec456")
+    seen = []
+
+    async def fake_request(self, method, path, **kw):
+        seen.append((self.base_url, method, path, kw))
+        req = httpx.Request(method, self.base_url + path)
+        if path == "/oauth2/token":
+            return httpx.Response(200, json={"access_token": "tok789", "expires_in": 5587808, "token_type": "bearer"}, request=req)
+        return httpx.Response(200, json=[{"id": 1}], request=req)
+    monkeypatch.setattr(http_mod.Throttled, "request", fake_request)
+    client = igdb.IGDB()
+    try:
+        await client.games(limit=100, offset=200, min_ratings=50)
+        await client.games(limit=10)
+    finally:
+        await client.aclose()
+    (b0, m0, p0, k0), (b1, m1, p1, k1), (_b2, _m2, _p2, k2) = seen
+    assert (b0, m0, p0) == ("https://id.twitch.tv", "POST", "/oauth2/token")
+    assert k0["params"] == {"client_id": "cid123", "client_secret": "sec456", "grant_type": "client_credentials"}
+    assert (b1, m1, p1) == ("https://api.igdb.com/v4", "POST", "/games")
+    assert k1["headers"]["Client-ID"] == "cid123" and k1["headers"]["Authorization"] == "Bearer tok789"
+    body = k1["content"]
+    assert body.rstrip().endswith("limit 100; offset 200;") and "total_rating_count >= 50" in body and "version_parent = null" in body
+    assert len(seen) == 3 and k2["headers"]["Authorization"] == "Bearer tok789"      # token fetched once, reused
